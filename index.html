@@ -70,8 +70,8 @@
           <div class="slider-row">
             <label for="rngD">ปรับระยะแท่นสามเหลี่ยม <code>d</code> แบบ Manual (0–20 cm จากจุดกึ่งกลาง 25 cm):</label>
             <div class="slider-val-wrap">
-              <input type="range" id="rngD" min="0" max="20" step="0.1" value="13.6" />
-              <span id="lblDVal" class="mono-pill">13.6 cm</span>
+              <input type="range" id="rngD" min="0" max="20" step="0.1" value="10.2" />
+              <span id="lblDVal" class="mono-pill">10.2 cm</span>
             </div>
           </div>
         </div>
@@ -199,7 +199,7 @@
             </div>
             <div class="formula-box">
               <code>I<sub>board</sub> = M·L²/12 + M·s<sub>cm</sub>², &nbsp; I<sub>sys</sub> = I<sub>board</sub> + m₂·r₂²</code><br />
-              <code>ω₀ = (1 + e)·m₁·v₁·r₁ / (m₁·r₁² + I<sub>sys</sub>), &nbsp; v₂ = η·ω<sub>launch</sub>·r₂</code>
+              <code>ω₀ = (1 + e)·m₁·v₁·r₁ / I<sub>sys</sub>, &nbsp; v₂ = η·ω<sub>launch</sub>·r₂</code>
             </div>
             <div class="calc-lines" id="calcCard2"></div>
             <div class="explain-box" id="explainCard2"></div>
@@ -255,8 +255,8 @@
           <div class="preset-bar">
             <label for="selPreset">ชุดค่าพารามิเตอร์ (Preset):</label>
             <select id="selPreset">
-              <option value="tuned">จูนให้ถึงทุกเป้า (ค่าเริ่มต้น)</option>
-              <option value="standard">วัสดุทั่วไป ไม่เสริมความสูง</option>
+              <option value="tuned">ค่าเริ่มต้น (ปล่อยจากแท่น 30 cm – ถึงครบ 6 เป้า)</option>
+              <option value="standard">กระดานหนัก / สะท้อนน้อย (120 g)</option>
               <option value="custom">กำหนดเอง</option>
             </select>
             <button type="button" id="btnResetParams" class="btn small-btn">คืนค่าเริ่มต้น</button>

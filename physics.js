@@ -22,21 +22,21 @@
   const PRESETS = {
     tuned: {
       id: 'tuned',
-      name: 'จูนให้ถึงทุกเป้า',
+      name: 'ค่าเริ่มต้น (ปล่อยจากแท่น 30 cm)',
       M_board: 0.08,
-      e_billiard: 0.70,
-      e_tennis: 0.80,
+      e_billiard: 0.35,
+      e_tennis: 0.65,
       impactInset: 1.0,
       golfInset: 2.2,
-      extraDropHeight: 25,
+      extraDropHeight: 0,
       eta: 1.0
     },
     standard: {
       id: 'standard',
-      name: 'วัสดุทั่วไป ไม่เสริมความสูง',
-      M_board: 0.10,
-      e_billiard: 0.60,
-      e_tennis: 0.75,
+      name: 'กระดานหนัก / สะท้อนน้อย (120 g)',
+      M_board: 0.12,
+      e_billiard: 0.30,
+      e_tennis: 0.50,
       impactInset: 1.0,
       golfInset: 2.2,
       extraDropHeight: 0,
@@ -183,16 +183,15 @@
     const v1 = Math.sqrt(2 * g * dh1);
     const t_fall = dh1 > 0 ? Math.sqrt((2 * dh1) / g) : 0;
 
-    // Stage 2: Impact & rotation
+    // Stage 2: Impact & rotation (angular momentum transfer L_in -> L_out)
     const M = opts.ideal ? 0 : Math.max(0, Number(params.M_board));
     const I_board = opts.ideal ? 0 : (M * L_m * L_m) / 12 + M * s_cm * s_cm;
     const I_sys = I_board + m2 * r2 * r2;
-    const denom = m1 * r1 * r1 + I_sys;
-    const omega0 = denom > 0 ? ((1 + e) * m1 * v1 * r1) / denom : 0;
+    const omega0 = I_sys > 0 ? ((1 + e) * m1 * v1 * r1) / I_sys : 0;
 
-    // Post-impact vertical velocity of falling ball (downward positive)
-    const v1_after_down = omega0 * r1 - e * v1;
-    const v1_rebound_up = -v1_after_down;
+    // Post-impact vertical velocity of falling ball for animation rebound
+    const v1_after_down = Math.min(omega0 * r1, omega0 * r1 - e * v1);
+    const v1_rebound_up = Math.max(-v1 * 0.25, -v1_after_down);
 
     let theta = theta0;
     let omega = omega0;
@@ -398,8 +397,8 @@
     const tLaunch = tImpact + ctx.t_rot;
     const x_impact = ctx.x_p + ctx.r1_cm;
     const y_platform_center = ctx.h_grey + ctx.extraDrop + ctx.r_ball;
-    const x_push_start = Math.max(52.5, x_impact + 3.5);
-    const x_drop_edge = 50.0;
+    const x_push_start = 50.0 + ctx.r_ball;
+    const x_drop_edge = 49.5;
 
     // Flight duration until ball falls back near ground or board
     const y_launch_center = ctx.y_board_golf_top + ctx.r_golf;

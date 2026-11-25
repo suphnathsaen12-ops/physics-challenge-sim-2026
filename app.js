@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'ap_challenge_2026_sim_v1';
+  const STORAGE_KEY = 'ap_challenge_2026_sim_v2';
 
   function logError(err) {
     const pre = document.getElementById('errlog');
@@ -48,7 +48,7 @@
       presetId: stored && stored.presetId ? stored.presetId : 'tuned',
       ballType: 'billiard',
       rangeIndex: 0,
-      d: 13.6,
+      d: 10.2,
       opts: {
         ideal: false,
         guided: true,
@@ -62,8 +62,8 @@
       animMode: 'idle', // 'idle' | 'sliding' | 'running' | 'done'
       simTime: 0,
       lastFrameTs: null,
-      slideFromD: 13.6,
-      slideToD: 13.6,
+      slideFromD: 10.2,
+      slideToD: 10.2,
       slideProgress: 1,
       activeSim: null,
       lockedResult: null,
@@ -383,7 +383,7 @@
       el.calcCard1.innerHTML =
         '<div>x<sub>p</sub> = 25 + ' + s.d.toFixed(1) + ' = ' + s.x_p.toFixed(1) + ' cm, &nbsp; θ₀ = ' + deg0.toFixed(2) + '°</div>' +
         '<div>r₁ = ' + s.r1_cm.toFixed(2) + ' cm, &nbsp; y<sub>top</sub> = 3 − ' + s.r1_cm.toFixed(2) + '·sin(' + deg0.toFixed(2) + '°) + ' + state.params.t_board.toFixed(1) + ' = ' + s.y_impact_top.toFixed(2) + ' cm</div>' +
-        '<div>h<sub>extra</sub> = ' + s.extraDropHeight.toFixed(1) + ' cm → ความสูงปล่อย = 30 + ' + s.extraDropHeight.toFixed(1) + ' = ' + (30 + s.extraDropHeight).toFixed(1) + ' cm</div>' +
+        '<div>จุดปล่อยลูก: 30' + (s.extraDropHeight > 0 ? ' + ' + s.extraDropHeight.toFixed(1) + ' = ' + (30 + s.extraDropHeight).toFixed(1) : '') + ' cm (บนแท่นสีเทา)</div>' +
         '<div>Δh₁ = ' + (30 + s.extraDropHeight).toFixed(1) + ' − ' + s.y_impact_top.toFixed(2) + ' = ' + s.dh1_cm.toFixed(2) + ' cm (' + s.dh1.toFixed(4) + ' m)</div>' +
         '<div class="res-line">v₁ = √(2 × ' + state.params.g.toFixed(2) + ' × ' + s.dh1.toFixed(4) + ') = ' + s.v1.toFixed(3) + ' m/s</div>';
 
@@ -397,7 +397,7 @@
       el.calcCard2.innerHTML =
         '<div>r₁ = ' + s.r1_cm.toFixed(2) + ' cm, &nbsp; r₂ = ' + s.r2_cm.toFixed(2) + ' cm, &nbsp; s<sub>cm</sub> = ' + (s.s_cm * 100).toFixed(1) + ' cm</div>' +
         '<div>I<sub>board</sub> = ' + s.I_board.toExponential(3) + ' kg·m², &nbsp; I<sub>sys</sub> = ' + s.I_sys.toExponential(3) + ' kg·m²</div>' +
-        '<div>ω₀ = (1 + ' + s.e.toFixed(2) + ')·' + s.m1.toFixed(3) + '·' + s.v1.toFixed(3) + '·' + s.r1.toFixed(3) + ' / denom = ' + s.omega0.toFixed(2) + ' rad/s</div>' +
+        '<div>ω₀ = (1 + ' + s.e.toFixed(2) + ')·' + s.m1.toFixed(3) + '·' + s.v1.toFixed(3) + '·' + s.r1.toFixed(3) + ' / I<sub>sys</sub> = ' + s.omega0.toFixed(2) + ' rad/s</div>' +
         '<div>หลังหมุน (' + reasonThai + '): ω<sub>launch</sub> = ' + s.omega_launch.toFixed(2) + ' rad/s</div>' +
         '<div class="res-line">v₂ = ' + s.etaUsed.toFixed(2) + ' × ' + s.omega_launch.toFixed(2) + ' × ' + s.r2.toFixed(3) + ' = ' + s.v2.toFixed(3) + ' m/s</div>';
 
@@ -446,7 +446,7 @@
       const w = canvas.width;
       const h = canvas.height;
       const worldXMin = -13;
-      const worldXMax = 63;
+      const worldXMax = 67;
       const worldYMin = -7.5;
       const worldYMax = 96;
       const scale = Math.min(w / (worldXMax - worldXMin), h / (worldYMax - worldYMin));
@@ -470,7 +470,7 @@
       return { w, h, dpr, scale, toPxX, toPxY, toWorldX, toWorldY };
     }
 
-    function drawArrow(ctx, x1, y1, x2, y2, color, label, dpr) {
+    function drawArrow(ctx, x1, y1, x2, y2, color, label, dpr, labelLeft) {
       const dx = x2 - x1;
       const dy = y2 - y1;
       const len = Math.hypot(dx, dy);
@@ -497,7 +497,13 @@
       if (label) {
         ctx.font = 'bold ' + Math.round(12 * dpr) + 'px Consolas, "Segoe UI", sans-serif';
         ctx.fillStyle = color;
-        ctx.fillText(label, x2 + 6 * dpr, y2 + 4 * dpr);
+        if (labelLeft) {
+          ctx.textAlign = 'right';
+          ctx.fillText(label, x2 - 8 * dpr, y2 + 4 * dpr);
+        } else {
+          ctx.textAlign = 'left';
+          ctx.fillText(label, x2 + 6 * dpr, y2 + 4 * dpr);
+        }
       }
       ctx.restore();
     }
@@ -642,37 +648,35 @@
       }
       ctx.restore();
 
-      // Grey Pillar (50..58, 0..30)
+      // Grey Pillar (50..64, 0..30)
       ctx.save();
-      const gradG = ctx.createLinearGradient(toPxX(50), 0, toPxX(58), 0);
-      gradG.addColorStop(0, '#64748b');
-      gradG.addColorStop(1, '#475569');
+      const greyW = 14;
+      const gradG = ctx.createLinearGradient(toPxX(50), 0, toPxX(50 + greyW), 0);
+      gradG.addColorStop(0, '#94a3b8');
+      gradG.addColorStop(1, '#64748b');
       ctx.fillStyle = gradG;
-      ctx.fillRect(toPxX(50), toPxY(30), 8 * scale, 30 * scale);
-      ctx.strokeStyle = '#94a3b8';
+      ctx.fillRect(toPxX(50), toPxY(30), greyW * scale, 30 * scale);
+      ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1.5 * dpr;
-      ctx.strokeRect(toPxX(50), toPxY(30), 8 * scale, 30 * scale);
+      ctx.strokeRect(toPxX(50), toPxY(30), greyW * scale, 30 * scale);
 
-      ctx.fillStyle = '#f8fafc';
+      ctx.fillStyle = '#0f172a';
       ctx.font = 'bold ' + Math.round(11 * dpr) + 'px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('30 cm', toPxX(54), toPxY(15));
+      ctx.fillText('แท่นสีเทา 30 cm', toPxX(50 + greyW * 0.5), toPxY(11));
 
-      // Extra drop height chute/stand if > 0
+      // Optional extra drop height stand only if > 0 in calibration
       const extraH = Math.max(0, Number(state.params.extraDropHeight) || 0);
       if (extraH > 0) {
         const yExtraTop = 30 + extraH;
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
-        ctx.strokeStyle = '#38bdf8';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 1.5 * dpr;
-        // Support pillars + top shelf
-        ctx.fillRect(toPxX(51.2), toPxY(yExtraTop), 5.6 * scale, extraH * scale);
-        ctx.strokeRect(toPxX(51.2), toPxY(yExtraTop), 5.6 * scale, extraH * scale);
-        ctx.fillStyle = '#38bdf8';
-        ctx.fillRect(toPxX(49.5), toPxY(yExtraTop), 8.5 * scale, 1.0 * scale);
-        ctx.fillStyle = '#bae6fd';
+        ctx.fillRect(toPxX(50.5), toPxY(yExtraTop), (greyW - 1) * scale, extraH * scale);
+        ctx.strokeRect(toPxX(50.5), toPxY(yExtraTop), (greyW - 1) * scale, extraH * scale);
+        ctx.fillStyle = '#cbd5e1';
         ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
-        ctx.fillText('+' + extraH.toFixed(0) + ' cm', toPxX(54), toPxY(30 + extraH * 0.5));
+        ctx.fillText('+' + extraH.toFixed(0) + ' cm', toPxX(50 + greyW * 0.5), toPxY(30 + extraH * 0.5));
       }
       ctx.restore();
 
@@ -772,19 +776,39 @@
       ctx.fill();
       ctx.restore();
 
-      // Pusher (อุปกรณ์ผลักลูกกลม)
+      // Horizontal Blue Pusher Device (อุปกรณ์ผลักลูกกลม) sitting on top of 30 cm grey platform
       if (sample) {
         ctx.save();
-        const pushY = 30 + extraH + sim.timeline.r_ball;
-        const pushX = sample.pusherX;
-        ctx.fillStyle = sample.phase === 'push' ? '#22c55e' : '#334155';
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1.3 * dpr;
-        ctx.fillRect(toPxX(pushX), toPxY(pushY + 1.5), 2.4 * scale, 3.0 * scale);
-        ctx.strokeRect(toPxX(pushX), toPxY(pushY + 1.5), 2.4 * scale, 3.0 * scale);
-        // Piston rod
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(toPxX(pushX + 2.4), toPxY(pushY + 0.5), 4.0 * scale, 1.0 * scale);
+        const baseY = 30 + extraH;
+        const boxH = 5.2;
+        const boxRightX = 63.8;
+        const pusherFrontX = sample.pusherX;
+        const boxLeftX = Math.min(56.8, Math.max(50.2, pusherFrontX));
+        const boxW = Math.max(5.5, boxRightX - boxLeftX);
+
+        // Blue pusher box resting directly on the 30 cm platform
+        const gradPush = ctx.createLinearGradient(0, toPxY(baseY + boxH), 0, toPxY(baseY));
+        gradPush.addColorStop(0, sample.phase === 'push' ? '#38bdf8' : '#0ea5e9');
+        gradPush.addColorStop(1, '#0284c7');
+        ctx.fillStyle = gradPush;
+        ctx.fillRect(toPxX(boxLeftX), toPxY(baseY + boxH), boxW * scale, boxH * scale);
+        ctx.strokeStyle = '#bae6fd';
+        ctx.lineWidth = 1.4 * dpr;
+        ctx.strokeRect(toPxX(boxLeftX), toPxY(baseY + boxH), boxW * scale, boxH * scale);
+
+        // Push plate on the left face when pushing
+        if (pusherFrontX < boxLeftX) {
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillRect(toPxX(pusherFrontX), toPxY(baseY + 2.8), (boxLeftX - pusherFrontX) * scale, 1.2 * scale);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(toPxX(pusherFrontX), toPxY(baseY + boxH - 0.6), 0.7 * scale, (boxH - 1.2) * scale);
+        }
+
+        // Label above blue pusher box
+        ctx.fillStyle = '#7dd3fc';
+        ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('อุปกรณ์ผลักลูกกลม', toPxX(58.5), toPxY(baseY + boxH + 1.8));
         ctx.restore();
       }
 
@@ -857,7 +881,7 @@
           const vScale = 4.5 * scale; // 1 m/s -> 4.5 cm arrow length
           if (sample.showV1 || state.animMode === 'idle') {
             const v1Len = Math.max(18 * dpr, sim.v1 * vScale);
-            drawArrow(ctx, bx, by + br, bx, by + br + v1Len, '#fb7185', 'v₁=' + sim.v1.toFixed(2) + ' m/s', dpr);
+            drawArrow(ctx, bx, by + br, bx, by + br + v1Len, '#fb7185', 'v₁=' + sim.v1.toFixed(2) + ' m/s', dpr, true);
           }
           if ((sample.showV2 || state.animMode === 'idle') && sim.v2 > 0.05) {
             const vxPx = sim.v2x * vScale;
@@ -914,10 +938,7 @@
       const altBall = state.ballType === 'billiard' ? 'tennis' : 'billiard';
       const altCurve = state.curvesCache[altBall] || [];
 
-      let maxH = 75;
-      curCurve.forEach(function (pt) { if (pt.H > maxH) maxH = pt.H; });
-      altCurve.forEach(function (pt) { if (pt.H > maxH) maxH = pt.H; });
-      const yMax = Math.ceil((maxH + 6) / 10) * 10;
+      const yMax = 90;
 
       const padL = 52 * dpr;
       const padR = 20 * dpr;
@@ -931,6 +952,9 @@
       }
       function gy(H) {
         return padT + plotH - (clamp(H, 0, yMax) / yMax) * plotH;
+      }
+      function gyRaw(H) {
+        return padT + plotH - (H / yMax) * plotH;
       }
 
       // Target zone bands for current ball
@@ -998,16 +1022,19 @@
       ctx.fillText('ความสูง H (cm)', 0, 0);
       ctx.restore();
 
-      // Alternate curve (faint dashed)
+      // Alternate curve (faint dashed, clipped inside plot area)
       if (altCurve.length > 1) {
         ctx.save();
+        ctx.beginPath();
+        ctx.rect(padL, padT, plotW, plotH);
+        ctx.clip();
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
         ctx.setLineDash([4 * dpr, 4 * dpr]);
         ctx.lineWidth = 1.6 * dpr;
         ctx.beginPath();
         altCurve.forEach(function (pt, idx) {
           const px = gx(pt.d);
-          const py = gy(pt.H);
+          const py = gyRaw(pt.H);
           if (idx === 0) ctx.moveTo(px, py);
           else ctx.lineTo(px, py);
         });
@@ -1015,15 +1042,18 @@
         ctx.restore();
       }
 
-      // Current ball curve
+      // Current ball curve (clipped inside plot area)
       if (curCurve.length > 1) {
         ctx.save();
+        ctx.beginPath();
+        ctx.rect(padL, padT, plotW, plotH);
+        ctx.clip();
         ctx.strokeStyle = state.ballType === 'billiard' ? '#38bdf8' : '#a3e635';
         ctx.lineWidth = 2.8 * dpr;
         ctx.beginPath();
         curCurve.forEach(function (pt, idx) {
           const px = gx(pt.d);
-          const py = gy(pt.H);
+          const py = gyRaw(pt.H);
           if (idx === 0) ctx.moveTo(px, py);
           else ctx.lineTo(px, py);
         });
