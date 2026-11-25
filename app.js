@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'ap_challenge_2026_sim_v2';
+  const STORAGE_KEY = 'ap_challenge_2026_sim_v3';
 
   function logError(err) {
     const pre = document.getElementById('errlog');
@@ -129,7 +129,6 @@
 
       selPreset: document.getElementById('selPreset'),
       btnResetParams: document.getElementById('btnResetParams'),
-      inExtraDrop: document.getElementById('inExtraDrop'),
       inMBoard: document.getElementById('inMBoard'),
       inTBoard: document.getElementById('inTBoard'),
       inBoardStart: document.getElementById('inBoardStart'),
@@ -154,7 +153,6 @@
     };
 
     const paramInputMap = [
-      ['inExtraDrop', 'extraDropHeight', 0, 40],
       ['inMBoard', 'M_board', 0, 5],
       ['inTBoard', 't_board', 0.1, 10],
       ['inBoardStart', 'boardStart', 0, 5],
@@ -185,8 +183,8 @@
     }
 
     function recomputeCurvesAndTable() {
-      state.curvesCache.billiard = Physics.heightCurve(state.params, 'billiard', state.opts, 0.1);
-      state.curvesCache.tennis = Physics.heightCurve(state.params, 'tennis', state.opts, 0.1);
+      state.curvesCache.billiard = Physics.heightCurve(state.params, 'billiard', state.opts, 0.1, -20, 20);
+      state.curvesCache.tennis = Physics.heightCurve(state.params, 'tennis', state.opts, 0.1, -20, 20);
 
       const rows = [];
       const arrB = [];
@@ -264,7 +262,8 @@
       el.sensorBadge.textContent = state.sensorAutoText;
 
       el.rngD.value = state.d.toFixed(1);
-      el.lblDVal.textContent = state.d.toFixed(1) + ' cm';
+      const dSign = state.d > 0.05 ? '+' : '';
+      el.lblDVal.textContent = dSign + state.d.toFixed(1) + ' cm';
 
       el.lblGuided.textContent = state.opts.guided ? 'รางบังคับแนวดิ่ง' : 'ลอยอิสระตามมุมกระดก';
       el.btnGuided.classList.toggle('active', state.opts.guided);
@@ -297,7 +296,13 @@
 
       el.dashBall.textContent = Physics.BALL_LABELS[state.ballType] + ' (' + (sim.m1 * 1000).toFixed(1) + ' g)';
       el.dashTarget.textContent = target.label;
-      el.dashD.textContent = state.d.toFixed(1) + ' cm';
+      const dDirText =
+        state.d > 0.05
+          ? ' (ไปทางแท่นเทา)'
+          : state.d < -0.05
+            ? ' (ไปทางเสาเหลือง)'
+            : ' (จุดกึ่งกลาง)';
+      el.dashD.textContent = (state.d > 0.05 ? '+' : '') + state.d.toFixed(1) + ' cm' + dDirText;
 
       if (state.animMode === 'running') {
         const sample = Physics.sampleState(state.activeSim, state.simTime);
@@ -355,7 +360,9 @@
             ' cm (เกิน 5 cm — ในสนามจริงควรใส่รางบังคับแนวดิ่งเพื่อเทียบแถบวัด 1 mm ได้แม่นยำ)'
         );
       }
-      if (sim && sim.valid && sim.flags.stalled) {
+      if (sim && sim.valid && sim.flags.boardAbovePlatform) {
+        warnings.push('⚠ ตำแหน่ง d นี้ทำให้ปลายกระดานฝั่งขวาเชิดสูงเกินระดับแท่น 30 cm ลูกจึงไม่ตกลงมากระทบกระดาน');
+      } else if (sim && sim.valid && sim.flags.stalled) {
         warnings.push('⚠ แรงกระดกไม่เพียงพอ (กระดานหยุดก่อนถึงจุดปล่อย ลูกกอล์ฟไม่หลุดพ้นกระดาน)');
       }
 
@@ -381,11 +388,13 @@
       const degL = (s.theta_launch * 180) / Math.PI;
 
       el.calcCard1.innerHTML =
-        '<div>x<sub>p</sub> = 25 + ' + s.d.toFixed(1) + ' = ' + s.x_p.toFixed(1) + ' cm, &nbsp; θ₀ = ' + deg0.toFixed(2) + '°</div>' +
+        '<div>x<sub>p</sub> = 25 + (' + s.d.toFixed(1) + ') = ' + s.x_p.toFixed(1) + ' cm, &nbsp; θ₀ = ' + deg0.toFixed(2) + '°</div>' +
         '<div>r₁ = ' + s.r1_cm.toFixed(2) + ' cm, &nbsp; y<sub>top</sub> = 3 − ' + s.r1_cm.toFixed(2) + '·sin(' + deg0.toFixed(2) + '°) + ' + state.params.t_board.toFixed(1) + ' = ' + s.y_impact_top.toFixed(2) + ' cm</div>' +
-        '<div>จุดปล่อยลูก: 30' + (s.extraDropHeight > 0 ? ' + ' + s.extraDropHeight.toFixed(1) + ' = ' + (30 + s.extraDropHeight).toFixed(1) : '') + ' cm (บนแท่นสีเทา)</div>' +
-        '<div>Δh₁ = ' + (30 + s.extraDropHeight).toFixed(1) + ' − ' + s.y_impact_top.toFixed(2) + ' = ' + s.dh1_cm.toFixed(2) + ' cm (' + s.dh1.toFixed(4) + ' m)</div>' +
-        '<div class="res-line">v₁ = √(2 × ' + state.params.g.toFixed(2) + ' × ' + s.dh1.toFixed(4) + ') = ' + s.v1.toFixed(3) + ' m/s</div>';
+        '<div>จุดปล่อยลูก: 30.0 cm (ผลักแนวราบจากบนแท่นสีเทา)</div>' +
+        (s.flags.boardAbovePlatform
+          ? '<div class="res-line">ปลายกระดานเชิดสูงเกิน 30.0 cm → Δh₁ = 0, v₁ = 0 m/s</div>'
+          : '<div>Δh₁ = 30.0 − ' + s.y_impact_top.toFixed(2) + ' = ' + s.dh1_cm.toFixed(2) + ' cm (' + s.dh1.toFixed(4) + ' m)</div>' +
+            '<div class="res-line">v₁ = √(2 × ' + state.params.g.toFixed(2) + ' × ' + s.dh1.toFixed(4) + ') = ' + s.v1.toFixed(3) + ' m/s</div>');
 
       const reasonThai =
         s.rotReason === 'hit_stop'
@@ -600,9 +609,10 @@
       ctx.lineTo(pxPivot, bracketY);
       ctx.lineTo(pxPivot, bracketY - 3 * dpr);
       ctx.stroke();
-      ctx.fillStyle = '#38bdf8';
+      ctx.fillStyle = state.d < -0.05 ? '#facc15' : '#38bdf8';
       ctx.font = 'bold ' + Math.round(11 * dpr) + 'px "Segoe UI", sans-serif';
-      ctx.fillText('d = ' + state.d.toFixed(1) + ' cm', (pxMid + pxPivot) * 0.5, bracketY + 12 * dpr);
+      const dLabel = 'd = ' + (state.d > 0.05 ? '+' : '') + state.d.toFixed(1) + ' cm';
+      ctx.fillText(dLabel, (pxMid + pxPivot) * 0.5, bracketY + 12 * dpr);
       ctx.restore();
 
       // Yellow Pillar (-8..0, 0..80)
@@ -665,18 +675,16 @@
       ctx.textAlign = 'center';
       ctx.fillText('แท่นสีเทา 30 cm', toPxX(50 + greyW * 0.5), toPxY(11));
 
-      // Optional extra drop height stand only if > 0 in calibration
-      const extraH = Math.max(0, Number(state.params.extraDropHeight) || 0);
-      if (extraH > 0) {
-        const yExtraTop = 30 + extraH;
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
-        ctx.strokeStyle = '#94a3b8';
+      // Orange dashed drop guide line along the 30 cm drop path
+      if (!sim.flags.boardAbovePlatform) {
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.75)';
+        ctx.setLineDash([4 * dpr, 4 * dpr]);
         ctx.lineWidth = 1.5 * dpr;
-        ctx.fillRect(toPxX(50.5), toPxY(yExtraTop), (greyW - 1) * scale, extraH * scale);
-        ctx.strokeRect(toPxX(50.5), toPxY(yExtraTop), (greyW - 1) * scale, extraH * scale);
-        ctx.fillStyle = '#cbd5e1';
-        ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
-        ctx.fillText('+' + extraH.toFixed(0) + ' cm', toPxX(50 + greyW * 0.5), toPxY(30 + extraH * 0.5));
+        ctx.beginPath();
+        ctx.moveTo(toPxX(49.2), toPxY(30));
+        ctx.lineTo(toPxX(49.2), toPxY(sim.y_impact_top));
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       ctx.restore();
 
@@ -776,39 +784,44 @@
       ctx.fill();
       ctx.restore();
 
-      // Horizontal Blue Pusher Device (อุปกรณ์ผลักลูกกลม) sitting on top of 30 cm grey platform
+      // Horizontal Blue Pusher Actuator & Piston Head (อุปกรณ์ผลักลูกกลม) directly on 30 cm grey platform
       if (sample) {
         ctx.save();
-        const baseY = 30 + extraH;
-        const boxH = 5.2;
-        const boxRightX = 63.8;
-        const pusherFrontX = sample.pusherX;
-        const boxLeftX = Math.min(56.8, Math.max(50.2, pusherFrontX));
-        const boxW = Math.max(5.5, boxRightX - boxLeftX);
+        const baseY = 30;
+        const boxH = 5.0;
+        const housingLeftX = 57.6;
+        const housingRightX = 63.8;
+        const housingW = housingRightX - housingLeftX;
 
-        // Blue pusher box resting directly on the 30 cm platform
+        // Blue pusher housing on the right of the ball
         const gradPush = ctx.createLinearGradient(0, toPxY(baseY + boxH), 0, toPxY(baseY));
         gradPush.addColorStop(0, sample.phase === 'push' ? '#38bdf8' : '#0ea5e9');
         gradPush.addColorStop(1, '#0284c7');
         ctx.fillStyle = gradPush;
-        ctx.fillRect(toPxX(boxLeftX), toPxY(baseY + boxH), boxW * scale, boxH * scale);
+        ctx.fillRect(toPxX(housingLeftX), toPxY(baseY + boxH), housingW * scale, boxH * scale);
         ctx.strokeStyle = '#bae6fd';
         ctx.lineWidth = 1.4 * dpr;
-        ctx.strokeRect(toPxX(boxLeftX), toPxY(baseY + boxH), boxW * scale, boxH * scale);
+        ctx.strokeRect(toPxX(housingLeftX), toPxY(baseY + boxH), housingW * scale, boxH * scale);
 
-        // Push plate on the left face when pushing
-        if (pusherFrontX < boxLeftX) {
-          ctx.fillStyle = '#94a3b8';
-          ctx.fillRect(toPxX(pusherFrontX), toPxY(baseY + 2.8), (boxLeftX - pusherFrontX) * scale, 1.2 * scale);
-          ctx.fillStyle = '#38bdf8';
-          ctx.fillRect(toPxX(pusherFrontX), toPxY(baseY + boxH - 0.6), 0.7 * scale, (boxH - 1.2) * scale);
+        // Sliding piston rod + push head block from housing to ball
+        const headLeftX = Math.max(50.0, sample.pusherX);
+        const headW = 1.6;
+        const rodLeftX = headLeftX + headW;
+        if (rodLeftX < housingLeftX) {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(toPxX(rodLeftX), toPxY(baseY + 2.9), (housingLeftX - rodLeftX) * scale, 1.0 * scale);
         }
+        ctx.fillStyle = sample.phase === 'push' ? '#38bdf8' : '#334155';
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 1.3 * dpr;
+        ctx.fillRect(toPxX(headLeftX), toPxY(baseY + 4.1), headW * scale, 3.4 * scale);
+        ctx.strokeRect(toPxX(headLeftX), toPxY(baseY + 4.1), headW * scale, 3.4 * scale);
 
-        // Label above blue pusher box
+        // Label above blue pusher device
         ctx.fillStyle = '#7dd3fc';
         ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('อุปกรณ์ผลักลูกกลม', toPxX(58.5), toPxY(baseY + boxH + 1.8));
+        ctx.fillText('อุปกรณ์ผลักลูกกลม', toPxX(59.0), toPxY(baseY + boxH + 1.8));
         ctx.restore();
       }
 
@@ -948,7 +961,7 @@
       const plotH = h - padT - padB;
 
       function gx(d) {
-        return padL + (d / 20) * plotW;
+        return padL + ((d + 20) / 40) * plotW;
       }
       function gy(H) {
         return padT + plotH - (clamp(H, 0, yMax) / yMax) * plotH;
@@ -981,14 +994,15 @@
       ctx.font = Math.round(10.5 * dpr) + 'px Consolas, sans-serif';
       ctx.lineWidth = 1 * dpr;
 
-      for (let d = 0; d <= 20; d += 2) {
+      for (let d = -20; d <= 20; d += 5) {
         const px = gx(d);
+        ctx.strokeStyle = d === 0 ? 'rgba(250, 204, 21, 0.35)' : 'rgba(148, 163, 184, 0.15)';
         ctx.beginPath();
         ctx.moveTo(px, padT);
         ctx.lineTo(px, padT + plotH);
         ctx.stroke();
         ctx.textAlign = 'center';
-        ctx.fillText(String(d), px, padT + plotH + 15 * dpr);
+        ctx.fillText((d > 0 ? '+' : '') + String(d), px, padT + plotH + 15 * dpr);
       }
 
       const yStep = yMax > 80 ? 20 : 10;
@@ -1014,7 +1028,7 @@
       ctx.fillStyle = '#cbd5e1';
       ctx.font = 'bold ' + Math.round(11 * dpr) + 'px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('ระยะเลื่อนแท่นสามเหลี่ยม d (cm)', padL + plotW * 0.5, h - 6 * dpr);
+      ctx.fillText('ระยะเลื่อนแท่นสามเหลี่ยม d (cm)  [ ← เสาเหลือง | แท่นเทา → ]', padL + plotW * 0.5, h - 6 * dpr);
 
       ctx.save();
       ctx.translate(14 * dpr, padT + plotH * 0.5);
@@ -1125,7 +1139,7 @@
     }
 
     function slideFulcrumTo(targetD) {
-      const clamped = Math.round(clamp(targetD, 0, 20) * 10) / 10;
+      const clamped = Math.round(clamp(targetD, -20, 20) * 10) / 10;
       state.lockedResult = null;
       state.slideFromD = state.d;
       state.slideToD = clamped;
@@ -1281,7 +1295,7 @@
       const wx = tf.toWorldX(pos.x);
       const wy = tf.toWorldY(pos.y);
       if (state.draggingFulcrum) {
-        state.d = Math.round(clamp(wx - 25, 0, 20) * 10) / 10;
+        state.d = Math.round(clamp(wx - 25, -20, 20) * 10) / 10;
         state.animMode = 'idle';
         recomputeActiveSim(false);
       } else {
@@ -1382,7 +1396,7 @@
 
     el.btnCalibEta.addEventListener('click', function () {
       const ball = el.selExpBall.value;
-      const dMeas = clamp(parseFloat(el.inExpD.value) || 0, 0, 20);
+      const dMeas = clamp(parseFloat(el.inExpD.value) || 0, -20, 20);
       const hMeas = parseFloat(el.inExpH.value);
       if (!Number.isFinite(hMeas) || hMeas <= 0) {
         el.calibMsg.textContent = 'กรุณากรอกค่าความสูง H ที่วัดได้จริงให้ถูกต้อง';

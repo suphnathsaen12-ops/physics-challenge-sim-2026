@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Applied Physics Challenge 2026 – Simulation</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <pre id="errlog" hidden></pre>
@@ -68,10 +68,10 @@
         </div>
         <div class="stage-footer">
           <div class="slider-row">
-            <label for="rngD">ปรับระยะแท่นสามเหลี่ยม <code>d</code> แบบ Manual (0–20 cm จากจุดกึ่งกลาง 25 cm):</label>
+            <label for="rngD">ปรับระยะแท่นสามเหลี่ยม <code>d</code> แบบ Manual (-20 ถึง +20 cm จากจุดกึ่งกลาง 25 cm: + ไปทางแท่นเทา, − ไปทางเสาเหลือง):</label>
             <div class="slider-val-wrap">
-              <input type="range" id="rngD" min="0" max="20" step="0.1" value="10.2" />
-              <span id="lblDVal" class="mono-pill">10.2 cm</span>
+              <input type="range" id="rngD" min="-20" max="20" step="0.1" value="10.2" />
+              <span id="lblDVal" class="mono-pill">+10.2 cm</span>
             </div>
           </div>
         </div>
@@ -147,8 +147,8 @@
             <div class="dash-v" id="dashTarget">40–50 cm</div>
           </div>
           <div class="dash-item">
-            <div class="dash-k">3. ระยะห่างแท่นสามเหลี่ยม (0–20 cm)</div>
-            <div class="dash-v mono" id="dashD">13.6 cm</div>
+            <div class="dash-k">3. ระยะเลื่อนแท่นสามเหลี่ยม (จากจุดกึ่งกลาง 25 cm)</div>
+            <div class="dash-v mono" id="dashD">10.2 cm</div>
           </div>
           <div class="dash-item">
             <div class="dash-k">4. ความสูงลูกกอล์ฟที่วัดได้</div>
@@ -184,7 +184,7 @@
             </div>
             <div class="formula-box">
               <code>y<sub>top</sub> = 3 − r₁·sin(θ₀) + t</code><br />
-              <code>Δh₁ = (30 + h<sub>extra</sub>) − y<sub>top</sub>, &nbsp; v₁ = √(2g·Δh₁)</code>
+              <code>Δh₁ = 30 − y<sub>top</sub>, &nbsp; v₁ = √(2g·Δh₁)</code>
             </div>
             <div class="calc-lines" id="calcCard1"></div>
           </article>
@@ -263,10 +263,6 @@
           </div>
 
           <div class="calib-grid">
-            <label class="full-span highlight-field">
-              <span>ความสูงจุดปล่อยเพิ่มเหนือแท่นเทา (รางหรือที่วางลูกที่ทีมออกแบบ) (cm)</span>
-              <input type="number" id="inExtraDrop" min="0" max="40" step="0.5" />
-            </label>
             <label>
               <span>มวลกระดาน M (kg)</span>
               <input type="number" id="inMBoard" min="0" max="2" step="0.01" />
@@ -344,7 +340,7 @@
               </label>
               <label>
                 <span>ค่า d ที่ตั้งจริง (cm)</span>
-                <input type="number" id="inExpD" min="0" max="20" step="0.1" value="5" />
+                <input type="number" id="inExpD" min="-20" max="20" step="0.1" value="5" />
               </label>
               <label>
                 <span>ความสูง H ที่วัดได้จริง (cm)</span>
@@ -359,7 +355,7 @@
     </section>
   </main>
 
-  <script src="physics.js"></script>
-  <script src="app.js"></script>
+  <script src="physics.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

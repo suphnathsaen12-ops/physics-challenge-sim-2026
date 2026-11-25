@@ -28,7 +28,6 @@
       e_tennis: 0.65,
       impactInset: 1.0,
       golfInset: 2.2,
-      extraDropHeight: 0,
       eta: 1.0
     },
     standard: {
@@ -39,7 +38,6 @@
       e_tennis: 0.50,
       impactInset: 1.0,
       golfInset: 2.2,
-      extraDropHeight: 0,
       eta: 1.0
     }
   };
@@ -65,7 +63,6 @@
       t_board: 1.0,
       impactInset: PRESETS.tuned.impactInset,
       golfInset: PRESETS.tuned.golfInset,
-      extraDropHeight: PRESETS.tuned.extraDropHeight,
 
       // Fixed competition field dimensions (cm)
       h_yellow: 80,
@@ -88,7 +85,6 @@
       e_tennis: preset.e_tennis,
       impactInset: preset.impactInset,
       golfInset: preset.golfInset,
-      extraDropHeight: preset.extraDropHeight,
       eta: preset.eta
     });
   }
@@ -126,7 +122,7 @@
       rawOpts || {}
     );
 
-    const d = clamp(Number(dRaw) || 0, 0, 20);
+    const d = clamp(Number(dRaw) || 0, -20, 20);
     const ball = getBallSpec(params, ballType);
     const m1 = Math.max(1e-4, Number(ball.m1));
     const r_ball = Math.max(0.1, Number(ball.r1_ball));
@@ -139,7 +135,6 @@
     const t_cm = Math.max(0.1, Number(params.t_board));
     const h_tri = Number(params.h_tri) || 3;
     const h_grey = Number(params.h_grey) || 30;
-    const extraDrop = Math.max(0, Number(params.extraDropHeight) || 0);
     const g = Math.max(0.1, Number(params.g) || 9.81);
     const etaInput = Math.max(0, Number(params.eta));
 
@@ -174,11 +169,12 @@
     const theta0 = -Math.asin(clamp(h_tri / R2end, -1, 1));
     const thetaf = Math.asin(clamp(h_tri / R1end, -1, 1));
 
-    // Stage 1: Falling ball from grey platform (+ extraDropHeight)
+    // Stage 1: Falling ball directly from 30 cm grey platform
     const y_impact_top = h_tri - r1_cm * Math.sin(theta0) + t_cm;
-    const y_drop_start_center = h_grey + extraDrop + r_ball;
+    const boardAbovePlatform = y_impact_top >= h_grey;
+    const y_drop_start_center = h_grey + r_ball;
     const y_impact_center = y_impact_top + r_ball;
-    const dh1_cm = Math.max(0, y_drop_start_center - y_impact_center);
+    const dh1_cm = boardAbovePlatform ? 0 : Math.max(0, y_drop_start_center - y_impact_center);
     const dh1 = dh1_cm / 100;
     const v1 = Math.sqrt(2 * g * dh1);
     const t_fall = dh1 > 0 ? Math.sqrt((2 * dh1) / g) : 0;
@@ -220,6 +216,9 @@
           });
         }
       }
+    } else if (omega0 <= 0) {
+      omega = 0;
+      rotReason = 'stalled';
     } else {
       const dt = 1e-5;
       const maxSteps = 500000;
@@ -311,7 +310,6 @@
         t_cm,
         h_tri,
         h_grey,
-        extraDrop,
         r_ball,
         r_golf,
         g,
@@ -348,7 +346,6 @@
       e: e,
       M: M,
       s_cm: s_cm,
-      extraDropHeight: extraDrop,
       theta0: theta0,
       thetaf: thetaf,
       theta_launch: theta_launch,
@@ -384,6 +381,7 @@
         stalled: stalled,
         earlySep: earlySep,
         hitStop: rotReason === 'hit_stop',
+        boardAbovePlatform: boardAbovePlatform,
         invalidGeometry: false
       },
       trajectory: trajectory,
@@ -396,7 +394,7 @@
     const tImpact = tPush + ctx.t_fall;
     const tLaunch = tImpact + ctx.t_rot;
     const x_impact = ctx.x_p + ctx.r1_cm;
-    const y_platform_center = ctx.h_grey + ctx.extraDrop + ctx.r_ball;
+    const y_platform_center = ctx.h_grey + ctx.r_ball;
     const x_push_start = 50.0 + ctx.r_ball;
     const x_drop_edge = 49.5;
 
@@ -632,13 +630,15 @@
     };
   }
 
-  function heightCurve(params, ballType, opts, step) {
+  function heightCurve(params, ballType, opts, step, minD, maxD) {
     const s = step || 0.1;
-    const count = Math.round(20 / s);
+    const dMin = typeof minD === 'number' ? minD : -20;
+    const dMax = typeof maxD === 'number' ? maxD : 20;
+    const count = Math.round((dMax - dMin) / s);
     const curve = [];
     const simOpts = Object.assign({}, opts || {}, { skipTimeline: true });
     for (let i = 0; i <= count; i++) {
-      const d = Math.round(i * s * 100) / 100;
+      const d = Math.round((dMin + i * s) * 100) / 100;
       const res = simulate(params, ballType, d, simOpts);
       curve.push({
         d: d,
@@ -654,7 +654,7 @@
     const lo = range[0];
     const hi = range[1];
     const mid = (lo + hi) / 2;
-    const curve = heightCurve(params, ballType, opts, 0.1);
+    const curve = heightCurve(params, ballType, opts, 0.1, 0, 20);
 
     let bestInRange = null;
     let bestInErr = Infinity;
