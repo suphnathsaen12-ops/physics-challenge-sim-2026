@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Applied Physics Challenge 2026 – Simulation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <pre id="errlog" hidden></pre>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-badge">2026</div>
+      <div>
+        <h1>Applied Physics Challenge 2026 – Simulation</h1>
+        <p class="subtitle">จำลองกลศาสตร์ 3 ช่วง + ระบบปุ่มกดและ Web Dashboard สำหรับ Arduino UNO Q</p>
+      </div>
+    </div>
+
+    <div class="mode-controls">
+      <button type="button" id="btnGuided" class="toggle-btn active" title="สลับระหว่างรางบังคับแนวดิ่งกับลอยอิสระ">
+        <span class="toggle-label">วิถีลูกกอล์ฟ:</span>
+        <strong id="lblGuided">รางบังคับแนวดิ่ง</strong>
+      </button>
+
+      <button type="button" id="btnIdeal" class="toggle-btn" title="สลับระหว่างโมเดลสมจริงกับโมเดลอุดมคติ">
+        <span class="toggle-label">โมเดล:</span>
+        <strong id="lblIdeal">สมจริง</strong>
+      </button>
+
+      <button type="button" id="btnVectors" class="toggle-btn active" title="เปิด/ปิดลูกศรเวกเตอร์ความเร็ว">
+        <span class="toggle-label">แสดงเวกเตอร์:</span>
+        <strong id="lblVectors">เปิด</strong>
+      </button>
+
+      <label class="select-pill" title="จุดอ้างอิงในการวัดความสูงลูกกอล์ฟ">
+        <span>จุดวัด:</span>
+        <select id="selMeasure">
+          <option value="bottom" selected>ขอบล่างลูก</option>
+          <option value="center">จุดศูนย์กลาง</option>
+          <option value="top">ขอบบน</option>
+        </select>
+      </label>
+
+      <label class="slowmo-pill">
+        <span>Slow-Mo: <strong id="lblSlowMo">0.50x</strong></span>
+        <input type="range" id="rngSlowMo" min="0.1" max="1.0" step="0.05" value="0.5" />
+      </label>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- Left Column: Simulation Stage + Competition Controls + Arduino Table -->
+    <section class="left-col">
+      <div class="card stage-card">
+        <div class="card-head">
+          <h2>สนามจำลองสัดส่วนจริง (Side View 1:1)</h2>
+          <div class="stage-legend">
+            <span class="legend-item"><i class="dot yellow"></i>แท่นเหลือง 80 cm</span>
+            <span class="legend-item"><i class="dot grey"></i>แท่นเทา 30 cm</span>
+            <span class="legend-item"><i class="dot wood"></i>กระดาน 48 cm</span>
+            <span class="legend-item"><i class="dot cyan"></i>แท่นสามเหลี่ยม (ลากบนภาพได้)</span>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="simCanvas"></canvas>
+        </div>
+        <div class="stage-footer">
+          <div class="slider-row">
+            <label for="rngD">ปรับระยะแท่นสามเหลี่ยม <code>d</code> แบบ Manual (0–20 cm จากจุดกึ่งกลาง 25 cm):</label>
+            <div class="slider-val-wrap">
+              <input type="range" id="rngD" min="0" max="20" step="0.1" value="13.6" />
+              <span id="lblDVal" class="mono-pill">13.6 cm</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Competition Controls -->
+      <div class="card controls-card">
+        <div class="card-head">
+          <h2>จำลองกติกาการแข่งขัน &amp; ปุ่มกด 4 ปุ่ม</h2>
+          <span id="sensorBadge" class="sensor-badge">ตรวจจับอัตโนมัติ: ลูกบิลเลียด</span>
+        </div>
+
+        <div class="control-groups">
+          <div class="ctrl-group">
+            <div class="ctrl-label">1. เลือกหรือสุ่มลูกกลม (วางบนแท่นสีเทา)</div>
+            <div class="btn-row">
+              <button type="button" id="btnBallBilliard" class="btn ball-btn active">ลูกบิลเลียด (170 g)</button>
+              <button type="button" id="btnBallTennis" class="btn ball-btn">ลูกเทนนิส (58 g)</button>
+              <button type="button" id="btnRandomBall" class="btn accent-outline">สุ่มลูก (Random)</button>
+            </div>
+          </div>
+
+          <div class="ctrl-group">
+            <div class="ctrl-label">2. ปุ่มกดระบบ (4 ปุ่มตามโจทย์ + Reset)</div>
+            <div class="btn-row four-buttons">
+              <button type="button" id="btnRange1" class="btn range-btn active">
+                <span class="r-title">ระยะที่ 1</span>
+                <small id="lblRange1">40–50 cm</small>
+              </button>
+              <button type="button" id="btnRange2" class="btn range-btn">
+                <span class="r-title">ระยะที่ 2</span>
+                <small id="lblRange2">50–60 cm</small>
+              </button>
+              <button type="button" id="btnRange3" class="btn range-btn">
+                <span class="r-title">ระยะที่ 3</span>
+                <small id="lblRange3">60–70 cm</small>
+              </button>
+              <button type="button" id="btnStart" class="btn start-btn">▶ START</button>
+              <button type="button" id="btnReset" class="btn reset-btn">↺ Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Graph Card -->
+      <div class="card graph-card">
+        <div class="card-head">
+          <h2>กราฟวิเคราะห์: ความสูงลูกกอล์ฟ <code>H</code> เทียบระยะเลื่อนสามเหลี่ยม <code>d</code></h2>
+          <span class="graph-sub" id="graphSub">เทียบเส้นโค้งลูกบิลเลียดกับลูกเทนนิส</span>
+        </div>
+        <div class="graph-wrap">
+          <canvas id="graphCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Web Dashboard + 3 Physics Cards + Arduino Table + Calibration -->
+    <section class="right-col">
+      <!-- Web Dashboard (5 required items) -->
+      <div class="card dashboard-card">
+        <div class="card-head">
+          <h2>Web Browser Dashboard (5 รายการตามกติกา)</h2>
+          <span id="dashStatusTag" class="dash-tag pending">รอกด START</span>
+        </div>
+
+        <div class="dash-grid">
+          <div class="dash-item">
+            <div class="dash-k">1. ชนิดของลูกกลมที่เลือก</div>
+            <div class="dash-v" id="dashBall">ลูกบิลเลียด</div>
+          </div>
+          <div class="dash-item">
+            <div class="dash-k">2. ระยะที่ต้องทำได้</div>
+            <div class="dash-v" id="dashTarget">40–50 cm</div>
+          </div>
+          <div class="dash-item">
+            <div class="dash-k">3. ระยะห่างแท่นสามเหลี่ยม (0–20 cm)</div>
+            <div class="dash-v mono" id="dashD">13.6 cm</div>
+          </div>
+          <div class="dash-item">
+            <div class="dash-k">4. ความสูงลูกกอล์ฟที่วัดได้</div>
+            <div class="dash-v mono" id="dashH">— (คาดการณ์ 45.0 cm)</div>
+          </div>
+          <div class="dash-item dash-wide" id="dashSuccessBox">
+            <div class="dash-k">5. สัญลักษณ์แสดงความสำเร็จของการทำงาน</div>
+            <div class="dash-success pending" id="dashSuccess">
+              <span class="sym">⏳</span>
+              <span id="dashSuccessText">ตั้งค่าพร้อมแล้ว กดปุ่ม START เพื่อทดสอบยิง</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="dashWarnings" class="warnings-box" hidden></div>
+      </div>
+
+      <!-- 3 Physics Presentation Cards -->
+      <div class="card physics-panel">
+        <div class="card-head">
+          <h2>หลักการทางฟิสิกส์และการคำนวณ 3 ช่วง (สำหรับนำเสนอ 5 นาที)</h2>
+          <span id="modePill" class="mode-pill">โหมดสมจริง</span>
+        </div>
+
+        <div class="physics-cards">
+          <article class="p-card" id="pCard1">
+            <div class="p-card-head">
+              <span class="step-num">1</span>
+              <div>
+                <h3>ช่วงที่ 1: การตกของลูกกลม</h3>
+                <div class="principle">หลักการ: กฎอนุรักษ์พลังงานกล (ΔE<sub>p</sub> = ΔE<sub>k</sub>)</div>
+              </div>
+            </div>
+            <div class="formula-box">
+              <code>y<sub>top</sub> = 3 − r₁·sin(θ₀) + t</code><br />
+              <code>Δh₁ = (30 + h<sub>extra</sub>) − y<sub>top</sub>, &nbsp; v₁ = √(2g·Δh₁)</code>
+            </div>
+            <div class="calc-lines" id="calcCard1"></div>
+          </article>
+
+          <article class="p-card" id="pCard2">
+            <div class="p-card-head">
+              <span class="step-num">2</span>
+              <div>
+                <h3>ช่วงที่ 2: การกระดกของแผ่นกระดาน</h3>
+                <div class="principle">หลักการ: อนุรักษ์โมเมนตัมเชิงมุมรอบจุดหมุน + ทฤษฎีแกนขนาน + สัมประสิทธิ์การสะท้อน (e)</div>
+              </div>
+            </div>
+            <div class="formula-box">
+              <code>I<sub>board</sub> = M·L²/12 + M·s<sub>cm</sub>², &nbsp; I<sub>sys</sub> = I<sub>board</sub> + m₂·r₂²</code><br />
+              <code>ω₀ = (1 + e)·m₁·v₁·r₁ / (m₁·r₁² + I<sub>sys</sub>), &nbsp; v₂ = η·ω<sub>launch</sub>·r₂</code>
+            </div>
+            <div class="calc-lines" id="calcCard2"></div>
+            <div class="explain-box" id="explainCard2"></div>
+          </article>
+
+          <article class="p-card" id="pCard3">
+            <div class="p-card-head">
+              <span class="step-num">3</span>
+              <div>
+                <h3>ช่วงที่ 3: การลอยตัวของลูกกอล์ฟ</h3>
+                <div class="principle">หลักการ: การเคลื่อนที่แนวดิ่ง / โพรเจกไทล์ภายใต้แรงโน้มถ่วง (อนุรักษ์พลังงานกล)</div>
+              </div>
+            </div>
+            <div class="formula-box">
+              <code>v₂y = v₂·cos(θ<sub>launch</sub>), &nbsp; H<sub>max</sub> = y<sub>launch</sub> + v₂y² / (2g)</code>
+            </div>
+            <div class="calc-lines" id="calcCard3"></div>
+          </article>
+        </div>
+      </div>
+
+      <!-- Arduino Lookup Table -->
+      <div class="card table-card">
+        <div class="card-head">
+          <h2>ตารางค่าระยะ <code>d</code> สำหรับโค้ด Arduino UNO Q</h2>
+          <button type="button" id="btnCopyArduino" class="btn copy-btn">คัดลอกเป็นโค้ด Arduino</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ชนิดลูก</th>
+                <th>ระยะเป้าหมาย</th>
+                <th>d ที่แนะนำ (cm)</th>
+                <th>H คาดการณ์ (cm)</th>
+                <th>สถานะ</th>
+              </tr>
+            </thead>
+            <tbody id="arduinoTableBody"></tbody>
+          </table>
+        </div>
+        <pre id="arduinoCodePreview" class="code-preview"></pre>
+        <div id="copyStatus" class="copy-status" aria-live="polite"></div>
+      </div>
+
+      <!-- Collapsible Calibration Panel -->
+      <details class="card calib-card" id="calibDetails">
+        <summary class="calib-summary">
+          <span>⚙ ปรับค่าจริงของชิ้นงาน (Calibration) &amp; จูนจากผลการทดลอง</span>
+          <span class="summary-hint">คลิกเพื่อเปิด/พับ</span>
+        </summary>
+        <div class="calib-body">
+          <div class="preset-bar">
+            <label for="selPreset">ชุดค่าพารามิเตอร์ (Preset):</label>
+            <select id="selPreset">
+              <option value="tuned">จูนให้ถึงทุกเป้า (ค่าเริ่มต้น)</option>
+              <option value="standard">วัสดุทั่วไป ไม่เสริมความสูง</option>
+              <option value="custom">กำหนดเอง</option>
+            </select>
+            <button type="button" id="btnResetParams" class="btn small-btn">คืนค่าเริ่มต้น</button>
+          </div>
+
+          <div class="calib-grid">
+            <label class="full-span highlight-field">
+              <span>ความสูงจุดปล่อยเพิ่มเหนือแท่นเทา (รางหรือที่วางลูกที่ทีมออกแบบ) (cm)</span>
+              <input type="number" id="inExtraDrop" min="0" max="40" step="0.5" />
+            </label>
+            <label>
+              <span>มวลกระดาน M (kg)</span>
+              <input type="number" id="inMBoard" min="0" max="2" step="0.01" />
+            </label>
+            <label>
+              <span>ความหนากระดาน t (cm)</span>
+              <input type="number" id="inTBoard" min="0.2" max="5" step="0.1" />
+            </label>
+            <label>
+              <span>ขอบซ้ายกระดาน boardStart (cm)</span>
+              <input type="number" id="inBoardStart" min="0" max="2" step="0.1" />
+            </label>
+            <label>
+              <span>ระยะเว้นจุดตก impactInset (cm)</span>
+              <input type="number" id="inImpactInset" min="0" max="8" step="0.1" />
+            </label>
+            <label>
+              <span>ระยะเว้นลูกกอล์ฟ golfInset (cm)</span>
+              <input type="number" id="inGolfInset" min="0" max="8" step="0.1" />
+            </label>
+            <label>
+              <span>ประสิทธิภาพส่งถ่าย η</span>
+              <input type="number" id="inEta" min="0.1" max="2.5" step="0.01" />
+            </label>
+
+            <label>
+              <span>มวลบิลเลียด (kg)</span>
+              <input type="number" id="inMBilliard" min="0.01" max="1" step="0.005" />
+            </label>
+            <label>
+              <span>รัศมีบิลเลียด (cm)</span>
+              <input type="number" id="inRBilliard" min="0.5" max="6" step="0.05" />
+            </label>
+            <label>
+              <span>สัมประสิทธิ์สะท้อน e บิลเลียด</span>
+              <input type="number" id="inEBilliard" min="0" max="1" step="0.01" />
+            </label>
+
+            <label>
+              <span>มวลเทนนิส (kg)</span>
+              <input type="number" id="inMTennis" min="0.01" max="1" step="0.005" />
+            </label>
+            <label>
+              <span>รัศมีเทนนิส (cm)</span>
+              <input type="number" id="inRTennis" min="0.5" max="6" step="0.05" />
+            </label>
+            <label>
+              <span>สัมประสิทธิ์สะท้อน e เทนนิส</span>
+              <input type="number" id="inETennis" min="0" max="1" step="0.01" />
+            </label>
+
+            <label>
+              <span>มวลกอล์ฟ (kg)</span>
+              <input type="number" id="inMGolf" min="0.01" max="0.5" step="0.001" />
+            </label>
+            <label>
+              <span>รัศมีกอล์ฟ (cm)</span>
+              <input type="number" id="inRGolf" min="0.5" max="5" step="0.05" />
+            </label>
+            <label>
+              <span>ค่าโน้มถ่วง g (m/s²)</span>
+              <input type="number" id="inG" min="1" max="20" step="0.01" />
+            </label>
+          </div>
+
+          <div class="tune-exp-box">
+            <h3>จูนจากการทดลองจริง (คำนวณ η อัตโนมัติด้วย Bisection)</h3>
+            <div class="tune-row">
+              <label>
+                <span>ลูกที่ทดลอง</span>
+                <select id="selExpBall">
+                  <option value="billiard">ลูกบิลเลียด</option>
+                  <option value="tennis">ลูกเทนนิส</option>
+                </select>
+              </label>
+              <label>
+                <span>ค่า d ที่ตั้งจริง (cm)</span>
+                <input type="number" id="inExpD" min="0" max="20" step="0.1" value="5" />
+              </label>
+              <label>
+                <span>ความสูง H ที่วัดได้จริง (cm)</span>
+                <input type="number" id="inExpH" min="1" max="100" step="0.5" value="55" />
+              </label>
+              <button type="button" id="btnCalibEta" class="btn accent-btn">จูนค่า η</button>
+            </div>
+            <div id="calibMsg" class="calib-msg"></div>
+          </div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="physics.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
