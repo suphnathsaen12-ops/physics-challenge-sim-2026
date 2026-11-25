@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Applied Physics Challenge 2026 – Simulation</title>
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
-<body>
+<body data-theme="neon" data-view="all">
   <pre id="errlog" hidden></pre>
 
   <header class="topbar">
@@ -47,12 +47,29 @@
         <span>Slow-Mo: <strong id="lblSlowMo">0.50x</strong></span>
         <input type="range" id="rngSlowMo" min="0.1" max="1.0" step="0.05" value="0.5" />
       </label>
+
+      <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="สลับธีมสี">
+        <button type="button" class="theme-pill active" data-theme-opt="neon">🌌 Neon Lab</button>
+        <button type="button" class="theme-pill" data-theme-opt="light">☀️ Light</button>
+        <button type="button" class="theme-pill" data-theme-opt="arcade">🎮 Arcade</button>
+      </div>
     </div>
   </header>
 
-  <main class="workspace">
-    <!-- Left Column: Simulation Stage + Competition Controls + Arduino Table -->
-    <section class="left-col">
+  <nav class="view-tabs-bar" aria-label="สลับมุมมองหน้าจอ">
+    <div class="view-tabs" id="viewTabs">
+      <button type="button" class="view-tab active" data-view-opt="all">📋 แสดงทั้งหมด (Full Page)</button>
+      <button type="button" class="view-tab" data-view-opt="physics">⚡ ฟิสิกส์ 3 ช่วง</button>
+      <button type="button" class="view-tab" data-view-opt="graph">📈 กราฟวิเคราะห์</button>
+      <button type="button" class="view-tab" data-view-opt="table">🤖 โค้ด Arduino</button>
+      <button type="button" class="view-tab" data-view-opt="calib">⚙️ ตั้งค่า Calibration</button>
+    </div>
+    <span class="view-hint">สลับดูเฉพาะส่วนแบบพอดีจอ หรือดูทั้งหมดพร้อมกันได้</span>
+  </nav>
+
+  <main class="workspace" id="workspaceMain">
+    <!-- Left Column: Simulation Stage + Competition Controls + Graph -->
+    <section class="left-col" id="leftCol">
       <div class="card stage-card">
         <div class="card-head">
           <h2>สนามจำลองสัดส่วนจริง (Side View 1:1)</h2>
@@ -88,36 +105,51 @@
           <div class="ctrl-group">
             <div class="ctrl-label">1. เลือกหรือสุ่มลูกกลม (วางบนแท่นสีเทา)</div>
             <div class="btn-row">
-              <button type="button" id="btnBallBilliard" class="btn ball-btn active">ลูกบิลเลียด (170 g)</button>
-              <button type="button" id="btnBallTennis" class="btn ball-btn">ลูกเทนนิส (58 g)</button>
-              <button type="button" id="btnRandomBall" class="btn accent-outline">สุ่มลูก (Random)</button>
+              <button type="button" id="btnBallBilliard" class="btn btn-3d ball-btn active">
+                <span class="led-dot"></span>
+                <span>🎱 ลูกบิลเลียด (170 g)</span>
+              </button>
+              <button type="button" id="btnBallTennis" class="btn btn-3d ball-btn">
+                <span class="led-dot"></span>
+                <span>🎾 ลูกเทนนิส (58 g)</span>
+              </button>
+              <button type="button" id="btnRandomBall" class="btn btn-3d accent-outline">
+                <span class="led-dot"></span>
+                <span>🎲 สุ่มลูก (Random)</span>
+              </button>
             </div>
           </div>
 
           <div class="ctrl-group">
             <div class="ctrl-label">2. ปุ่มกดระบบ (4 ปุ่มตามโจทย์ + Reset)</div>
             <div class="btn-row four-buttons">
-              <button type="button" id="btnRange1" class="btn range-btn active">
+              <button type="button" id="btnRange1" class="btn btn-3d range-btn r-btn-1 active">
+                <span class="led-dot"></span>
                 <span class="r-title">ระยะที่ 1</span>
                 <small id="lblRange1">40–50 cm</small>
               </button>
-              <button type="button" id="btnRange2" class="btn range-btn">
+              <button type="button" id="btnRange2" class="btn btn-3d range-btn r-btn-2">
+                <span class="led-dot"></span>
                 <span class="r-title">ระยะที่ 2</span>
                 <small id="lblRange2">50–60 cm</small>
               </button>
-              <button type="button" id="btnRange3" class="btn range-btn">
+              <button type="button" id="btnRange3" class="btn btn-3d range-btn r-btn-3">
+                <span class="led-dot"></span>
                 <span class="r-title">ระยะที่ 3</span>
                 <small id="lblRange3">60–70 cm</small>
               </button>
-              <button type="button" id="btnStart" class="btn start-btn">▶ START</button>
-              <button type="button" id="btnReset" class="btn reset-btn">↺ Reset</button>
+              <button type="button" id="btnStart" class="btn btn-3d start-btn">
+                <span class="led-dot pulse"></span>
+                <span>▶ START</span>
+              </button>
+              <button type="button" id="btnReset" class="btn btn-3d reset-btn">↺ Reset</button>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Graph Card -->
-      <div class="card graph-card">
+      <div class="card graph-card" id="graphCard" data-panel="graph">
         <div class="card-head">
           <h2>กราฟวิเคราะห์: ความสูงลูกกอล์ฟ <code>H</code> เทียบระยะเลื่อนสามเหลี่ยม <code>d</code></h2>
           <span class="graph-sub" id="graphSub">เทียบเส้นโค้งลูกบิลเลียดกับลูกเทนนิส</span>
@@ -129,7 +161,7 @@
     </section>
 
     <!-- Right Column: Web Dashboard + 3 Physics Cards + Arduino Table + Calibration -->
-    <section class="right-col">
+    <section class="right-col" id="rightCol">
       <!-- Web Dashboard (5 required items) -->
       <div class="card dashboard-card">
         <div class="card-head">
@@ -138,24 +170,24 @@
         </div>
 
         <div class="dash-grid">
-          <div class="dash-item">
-            <div class="dash-k">1. ชนิดของลูกกลมที่เลือก</div>
+          <div class="dash-item dash-c1">
+            <div class="dash-k"><span class="dash-num">01</span> ชนิดของลูกกลมที่เลือก</div>
             <div class="dash-v" id="dashBall">ลูกบิลเลียด</div>
           </div>
-          <div class="dash-item">
-            <div class="dash-k">2. ระยะที่ต้องทำได้</div>
+          <div class="dash-item dash-c2">
+            <div class="dash-k"><span class="dash-num">02</span> ระยะที่ต้องทำได้</div>
             <div class="dash-v" id="dashTarget">40–50 cm</div>
           </div>
-          <div class="dash-item">
-            <div class="dash-k">3. ระยะเลื่อนแท่นสามเหลี่ยม (จากจุดกึ่งกลาง 25 cm)</div>
+          <div class="dash-item dash-c3">
+            <div class="dash-k"><span class="dash-num">03</span> ระยะเลื่อนแท่นสามเหลี่ยม (จากจุดกึ่งกลาง 25 cm)</div>
             <div class="dash-v mono" id="dashD">10.2 cm</div>
           </div>
-          <div class="dash-item">
-            <div class="dash-k">4. ความสูงลูกกอล์ฟที่วัดได้</div>
+          <div class="dash-item dash-c4">
+            <div class="dash-k"><span class="dash-num">04</span> ความสูงลูกกอล์ฟที่วัดได้</div>
             <div class="dash-v mono" id="dashH">— (คาดการณ์ 45.0 cm)</div>
           </div>
-          <div class="dash-item dash-wide" id="dashSuccessBox">
-            <div class="dash-k">5. สัญลักษณ์แสดงความสำเร็จของการทำงาน</div>
+          <div class="dash-item dash-c5 dash-wide" id="dashSuccessBox">
+            <div class="dash-k"><span class="dash-num">05</span> สัญลักษณ์แสดงความสำเร็จของการทำงาน</div>
             <div class="dash-success pending" id="dashSuccess">
               <span class="sym">⏳</span>
               <span id="dashSuccessText">ตั้งค่าพร้อมแล้ว กดปุ่ม START เพื่อทดสอบยิง</span>
@@ -167,7 +199,7 @@
       </div>
 
       <!-- 3 Physics Presentation Cards -->
-      <div class="card physics-panel">
+      <div class="card physics-panel" id="physicsPanel" data-panel="physics">
         <div class="card-head">
           <h2>หลักการทางฟิสิกส์และการคำนวณ 3 ช่วง (สำหรับนำเสนอ 5 นาที)</h2>
           <span id="modePill" class="mode-pill">โหมดสมจริง</span>
@@ -222,7 +254,7 @@
       </div>
 
       <!-- Arduino Lookup Table -->
-      <div class="card table-card">
+      <div class="card table-card" id="tableCard" data-panel="table">
         <div class="card-head">
           <h2>ตารางค่าระยะ <code>d</code> สำหรับโค้ด Arduino UNO Q</h2>
           <button type="button" id="btnCopyArduino" class="btn copy-btn">คัดลอกเป็นโค้ด Arduino</button>
@@ -246,7 +278,7 @@
       </div>
 
       <!-- Collapsible Calibration Panel -->
-      <details class="card calib-card" id="calibDetails">
+      <details class="card calib-card" id="calibDetails" data-panel="calib">
         <summary class="calib-summary">
           <span>⚙ ปรับค่าจริงของชิ้นงาน (Calibration) &amp; จูนจากผลการทดลอง</span>
           <span class="summary-hint">คลิกเพื่อเปิด/พับ</span>
@@ -355,7 +387,7 @@
     </section>
   </main>
 
-  <script src="physics.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="physics.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

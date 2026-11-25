@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'ap_challenge_2026_sim_v3';
+  const STORAGE_KEY = 'ap_challenge_2026_sim_v4';
 
   function logError(err) {
     const pre = document.getElementById('errlog');
@@ -33,9 +33,18 @@
     }
   }
 
-  function saveStoredState(params, presetId) {
+  function saveStoredState(params, presetId, theme, view) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ params: params, presetId: presetId }));
+      const prev = loadStoredState() || {};
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          params: params,
+          presetId: presetId,
+          theme: theme || prev.theme || 'neon',
+          view: view || prev.view || 'all'
+        })
+      );
     } catch (e) {
       // Ignore storage quota or private mode restrictions
     }
@@ -46,6 +55,8 @@
     const state = {
       params: Object.assign(Physics.defaultParams(), stored && stored.params ? stored.params : {}),
       presetId: stored && stored.presetId ? stored.presetId : 'tuned',
+      theme: stored && stored.theme ? stored.theme : 'neon',
+      view: stored && stored.view ? stored.view : 'all',
       ballType: 'billiard',
       rangeIndex: 0,
       d: 10.2,
@@ -57,6 +68,7 @@
       showVectors: true,
       slowMo: 0.5,
       sensorAutoText: 'ตรวจจับอัตโนมัติ: ลูกบิลเลียด',
+      rouletting: false,
 
       // Simulation & animation state
       animMode: 'idle', // 'idle' | 'sliding' | 'running' | 'done'
@@ -75,6 +87,13 @@
 
     // DOM References
     const el = {
+      themeSwitcher: document.getElementById('themeSwitcher'),
+      viewTabs: document.getElementById('viewTabs'),
+      leftCol: document.getElementById('leftCol'),
+      rightCol: document.getElementById('rightCol'),
+      graphCard: document.getElementById('graphCard'),
+      calibDetails: document.getElementById('calibDetails'),
+
       btnGuided: document.getElementById('btnGuided'),
       lblGuided: document.getElementById('lblGuided'),
       btnIdeal: document.getElementById('btnIdeal'),
@@ -517,6 +536,106 @@
       ctx.restore();
     }
 
+    function getCanvasColors() {
+      if (state.theme === 'light') {
+        return {
+          grid: 'rgba(15, 23, 42, 0.08)',
+          groundBg: '#e2e8f0',
+          groundLine: '#475569',
+          rulerText: '#334155',
+          previewLine: 'rgba(71, 85, 105, 0.55)',
+          previewText: '#334155',
+          apexLine: '#16a34a',
+          apexText: '#15803d',
+          axisLine: '#64748b',
+          axisText: '#1e293b',
+          curveBilliard: '#0284c7',
+          curveTennis: '#65a30d',
+          altCurve: 'rgba(100, 116, 139, 0.45)',
+          dotFill: '#eab308',
+          dotStroke: '#0f172a',
+          dotText: '#b45309'
+        };
+      }
+      if (state.theme === 'arcade') {
+        return {
+          grid: 'rgba(236, 72, 153, 0.12)',
+          groundBg: '#170a2e',
+          groundLine: '#ec4899',
+          rulerText: '#c4b5fd',
+          previewLine: 'rgba(196, 181, 253, 0.5)',
+          previewText: '#e9d5ff',
+          apexLine: '#4ade80',
+          apexText: '#86efac',
+          axisLine: '#a855f7',
+          axisText: '#f5d0fe',
+          curveBilliard: '#22d3ee',
+          curveTennis: '#a3e635',
+          altCurve: 'rgba(196, 181, 253, 0.42)',
+          dotFill: '#facc15',
+          dotStroke: '#090314',
+          dotText: '#fde047'
+        };
+      }
+      return {
+        grid: 'rgba(148, 163, 184, 0.08)',
+        groundBg: '#1e293b',
+        groundLine: '#64748b',
+        rulerText: '#94a3b8',
+        previewLine: 'rgba(148, 163, 184, 0.45)',
+        previewText: '#cbd5e1',
+        apexLine: '#22c55e',
+        apexText: '#86efac',
+        axisLine: '#64748b',
+        axisText: '#cbd5e1',
+        curveBilliard: '#38bdf8',
+        curveTennis: '#a3e635',
+        altCurve: 'rgba(148, 163, 184, 0.45)',
+        dotFill: '#facc15',
+        dotStroke: '#0f172a',
+        dotText: '#fef08a'
+      };
+    }
+
+    function applyTheme(theme) {
+      state.theme = theme === 'light' || theme === 'arcade' ? theme : 'neon';
+      document.body.setAttribute('data-theme', state.theme);
+      if (el.themeSwitcher) {
+        const pills = el.themeSwitcher.querySelectorAll('.theme-pill');
+        pills.forEach(function (btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-theme-opt') === state.theme);
+        });
+      }
+      saveStoredState(state.params, state.presetId, state.theme, state.view);
+      drawStage();
+      drawGraph();
+    }
+
+    function applyViewTab(view) {
+      const validViews = ['all', 'physics', 'graph', 'table', 'calib'];
+      state.view = validViews.indexOf(view) >= 0 ? view : 'all';
+      document.body.setAttribute('data-view', state.view);
+      if (el.viewTabs) {
+        const tabs = el.viewTabs.querySelectorAll('.view-tab');
+        tabs.forEach(function (btn) {
+          btn.classList.toggle('active', btn.getAttribute('data-view-opt') === state.view);
+        });
+      }
+      if (el.graphCard && el.leftCol && el.rightCol) {
+        if (state.view === 'graph') {
+          el.rightCol.appendChild(el.graphCard);
+        } else {
+          el.leftCol.appendChild(el.graphCard);
+        }
+      }
+      if (state.view === 'calib' && el.calibDetails) {
+        el.calibDetails.open = true;
+      }
+      saveStoredState(state.params, state.presetId, state.theme, state.view);
+      drawStage();
+      drawGraph();
+    }
+
     function drawStage() {
       const canvas = el.simCanvas;
       const ctx = canvas.getContext('2d');
@@ -524,6 +643,7 @@
       const { w, h, dpr, scale, toPxX, toPxY } = tf;
       const sim = state.activeSim;
       if (!sim || !sim.valid) return;
+      const pal = getCanvasColors();
 
       const sample =
         state.animMode === 'running' || state.animMode === 'done'
@@ -534,7 +654,7 @@
 
       // Subtle background grid (10 cm)
       ctx.save();
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
+      ctx.strokeStyle = pal.grid;
       ctx.lineWidth = 1 * dpr;
       for (let gx = -10; gx <= 60; gx += 10) {
         const px = toPxX(gx);
@@ -557,9 +677,9 @@
       const yBandTop = toPxY(target.max);
       const yBandBot = toPxY(target.min);
       ctx.save();
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.10)';
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
       ctx.fillRect(toPxX(-8), yBandTop, 16 * scale, yBandBot - yBandTop);
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.45)';
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
       ctx.setLineDash([4 * dpr, 4 * dpr]);
       ctx.lineWidth = 1.2 * dpr;
       ctx.beginPath();
@@ -572,9 +692,9 @@
 
       // Ground floor
       ctx.save();
-      ctx.fillStyle = '#1e293b';
+      ctx.fillStyle = pal.groundBg;
       ctx.fillRect(0, toPxY(0), w, h - toPxY(0));
-      ctx.strokeStyle = '#64748b';
+      ctx.strokeStyle = pal.groundLine;
       ctx.lineWidth = 2 * dpr;
       ctx.beginPath();
       ctx.moveTo(0, toPxY(0));
@@ -582,8 +702,8 @@
       ctx.stroke();
 
       // Horizontal 0..50 cm ruler & midpoint 25 cm
-      ctx.strokeStyle = '#94a3b8';
-      ctx.fillStyle = '#94a3b8';
+      ctx.strokeStyle = pal.rulerText;
+      ctx.fillStyle = pal.rulerText;
       ctx.font = Math.round(10 * dpr) + 'px Consolas, sans-serif';
       ctx.textAlign = 'center';
       for (let rx = 0; rx <= 50; rx += 5) {
@@ -699,7 +819,7 @@
         const tyBot = toPxY(9);
         ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
         ctx.fillRect(txL, tyTop, txR - txL, tyBot - tyTop);
-        ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
+        ctx.strokeStyle = state.theme === 'light' ? 'rgba(2, 132, 199, 0.65)' : 'rgba(125, 211, 252, 0.55)';
         ctx.lineWidth = 1.6 * dpr;
         ctx.beginPath();
         ctx.moveTo(txL, tyTop);
@@ -708,8 +828,8 @@
         ctx.lineTo(txR, tyBot);
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(125, 211, 252, 0.8)';
-        ctx.font = Math.round(10 * dpr) + 'px "Segoe UI", sans-serif';
+        ctx.fillStyle = state.theme === 'light' ? '#0369a1' : 'rgba(125, 211, 252, 0.85)';
+        ctx.font = 'bold ' + Math.round(10 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('รางบังคับแนวดิ่ง', txR + 4 * dpr, tyTop + 12 * dpr);
         ctx.restore();
@@ -818,10 +938,56 @@
         ctx.strokeRect(toPxX(headLeftX), toPxY(baseY + 4.1), headW * scale, 3.4 * scale);
 
         // Label above blue pusher device
-        ctx.fillStyle = '#7dd3fc';
+        ctx.fillStyle = state.theme === 'light' ? '#0369a1' : '#7dd3fc';
         ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('อุปกรณ์ผลักลูกกลม', toPxX(59.0), toPxY(baseY + boxH + 1.8));
+        ctx.restore();
+      }
+
+      // Motion Trail & Impact Shockwave during live animation
+      if (state.animMode === 'running' && sample && sim.timeline) {
+        ctx.save();
+        const trailCount = 8;
+        for (let k = trailCount; k >= 1; k--) {
+          const pastT = state.simTime - k * 0.012;
+          if (pastT < 0) continue;
+          const past = Physics.sampleState(sim, pastT);
+          if (!past) continue;
+          const alpha = (1 - k / (trailCount + 1)) * 0.45;
+          if (sample.phase === 'fall' && past.phase === 'fall') {
+            ctx.beginPath();
+            ctx.arc(toPxX(past.dropX), toPxY(past.dropY), sim.timeline.r_ball * scale * (1 - k * 0.06), 0, Math.PI * 2);
+            ctx.fillStyle = state.ballType === 'billiard'
+              ? 'rgba(248, 113, 113, ' + alpha.toFixed(2) + ')'
+              : 'rgba(163, 230, 53, ' + alpha.toFixed(2) + ')';
+            ctx.fill();
+          }
+          if (sample.phase === 'flight' && past.phase === 'flight' && state.simTime <= sim.timeline.tApexAbs + 0.06) {
+            ctx.beginPath();
+            ctx.arc(toPxX(past.golfX), toPxY(past.golfY), sim.timeline.r_golf * scale * (1 - k * 0.06), 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(56, 189, 248, ' + alpha.toFixed(2) + ')';
+            ctx.fill();
+          }
+        }
+
+        // Expanding shockwave rings right after impact
+        const dtImpact = state.simTime - sim.timeline.tImpact;
+        if (dtImpact >= 0 && dtImpact <= 0.30) {
+          const prog = dtImpact / 0.30;
+          const ix = toPxX(sim.timeline.x_impact);
+          const iy = toPxY(sim.y_impact_top);
+          [0, 0.18].forEach(function (lag) {
+            const p = prog - lag;
+            if (p <= 0 || p >= 1) return;
+            const ringR = (1.5 + p * 11.5) * scale;
+            ctx.beginPath();
+            ctx.arc(ix, iy, ringR, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(251, 191, 36, ' + ((1 - p) * 0.8).toFixed(2) + ')';
+            ctx.lineWidth = 2.2 * dpr;
+            ctx.stroke();
+          });
+        }
         ctx.restore();
       }
 
@@ -904,15 +1070,16 @@
         }
       }
 
-      // Max height marker line
+      // Max height marker line & Apex celebration sparkles
       const showApexBright =
         state.animMode === 'done' || (state.animMode === 'running' && sample && sample.reachedApex);
+      const inTarget = sim.H_max >= target.min && sim.H_max <= target.max;
       if (sim.H_max > 0) {
         ctx.save();
         const pyH = toPxY(sim.H_max);
         const targetX = state.opts.guided ? sim.x_golf_launch_cm : sim.x_apex_cm;
-        ctx.strokeStyle = showApexBright ? '#22c55e' : 'rgba(148, 163, 184, 0.45)';
-        ctx.lineWidth = (showApexBright ? 2.0 : 1.2) * dpr;
+        ctx.strokeStyle = showApexBright ? pal.apexLine : pal.previewLine;
+        ctx.lineWidth = (showApexBright ? 2.2 : 1.2) * dpr;
         ctx.setLineDash([5 * dpr, 4 * dpr]);
         ctx.beginPath();
         ctx.moveTo(toPxX(0), pyH);
@@ -920,11 +1087,28 @@
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = showApexBright ? '#86efac' : '#cbd5e1';
+        ctx.fillStyle = showApexBright ? pal.apexText : pal.previewText;
         ctx.font = 'bold ' + Math.round(11.5 * dpr) + 'px Consolas, "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         const tag = showApexBright ? 'H_max = ' : 'คาดการณ์ H ≈ ';
         ctx.fillText(tag + sim.H_max.toFixed(1) + ' cm', toPxX(Math.max(8, targetX + 4.5)), pyH + 4 * dpr);
+
+        // Celebration starburst sparkles when hitting target at apex
+        if (showApexBright && inTarget) {
+          const sx = toPxX(targetX);
+          const sy = pyH;
+          const sparkColors = ['#facc15', '#4ade80', '#38bdf8', '#f472b6'];
+          for (let i = 0; i < 10; i++) {
+            const ang = (i / 10) * Math.PI * 2 + (state.animMode === 'running' ? state.simTime * 3 : 0.25);
+            const dist = (i % 2 === 0 ? 3.2 : 5.0) * scale;
+            const px = sx + Math.cos(ang) * dist;
+            const py = sy + Math.sin(ang) * dist;
+            ctx.beginPath();
+            ctx.arc(px, py, (i % 2 === 0 ? 2.6 : 1.9) * dpr, 0, Math.PI * 2);
+            ctx.fillStyle = sparkColors[i % sparkColors.length];
+            ctx.fill();
+          }
+        }
         ctx.restore();
       }
     }
@@ -946,6 +1130,7 @@
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
+      const pal = getCanvasColors();
 
       const curCurve = state.curvesCache[state.ballType] || [];
       const altBall = state.ballType === 'billiard' ? 'tennis' : 'billiard';
@@ -982,21 +1167,21 @@
         ctx.lineWidth = 1 * dpr;
         ctx.strokeRect(padL, y1, plotW, y2 - y1);
 
-        ctx.fillStyle = isSel ? '#86efac' : '#94a3b8';
-        ctx.font = Math.round(10 * dpr) + 'px "Segoe UI", sans-serif';
+        ctx.fillStyle = isSel ? (state.theme === 'light' ? '#15803d' : '#86efac') : pal.rulerText;
+        ctx.font = 'bold ' + Math.round(10 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText('ระยะ ' + (idx + 1) + ' (' + t.min + '–' + t.max + ')', w - padR - 4 * dpr, (y1 + y2) * 0.5 + 3 * dpr);
       });
 
       // Grid lines
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
-      ctx.fillStyle = '#94a3b8';
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+      ctx.fillStyle = pal.rulerText;
       ctx.font = Math.round(10.5 * dpr) + 'px Consolas, sans-serif';
       ctx.lineWidth = 1 * dpr;
 
       for (let d = -20; d <= 20; d += 5) {
         const px = gx(d);
-        ctx.strokeStyle = d === 0 ? 'rgba(250, 204, 21, 0.35)' : 'rgba(148, 163, 184, 0.15)';
+        ctx.strokeStyle = d === 0 ? 'rgba(250, 204, 21, 0.45)' : 'rgba(148, 163, 184, 0.16)';
         ctx.beginPath();
         ctx.moveTo(px, padT);
         ctx.lineTo(px, padT + plotH);
@@ -1005,6 +1190,7 @@
         ctx.fillText((d > 0 ? '+' : '') + String(d), px, padT + plotH + 15 * dpr);
       }
 
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
       const yStep = yMax > 80 ? 20 : 10;
       for (let v = 0; v <= yMax; v += yStep) {
         const py = gy(v);
@@ -1017,7 +1203,7 @@
       }
 
       // Axes & labels
-      ctx.strokeStyle = '#64748b';
+      ctx.strokeStyle = pal.axisLine;
       ctx.lineWidth = 1.6 * dpr;
       ctx.beginPath();
       ctx.moveTo(padL, padT);
@@ -1025,7 +1211,7 @@
       ctx.lineTo(padL + plotW, padT + plotH);
       ctx.stroke();
 
-      ctx.fillStyle = '#cbd5e1';
+      ctx.fillStyle = pal.axisText;
       ctx.font = 'bold ' + Math.round(11 * dpr) + 'px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('ระยะเลื่อนแท่นสามเหลี่ยม d (cm)  [ ← เสาเหลือง | แท่นเทา → ]', padL + plotW * 0.5, h - 6 * dpr);
@@ -1042,7 +1228,7 @@
         ctx.beginPath();
         ctx.rect(padL, padT, plotW, plotH);
         ctx.clip();
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.strokeStyle = pal.altCurve;
         ctx.setLineDash([4 * dpr, 4 * dpr]);
         ctx.lineWidth = 1.6 * dpr;
         ctx.beginPath();
@@ -1062,7 +1248,7 @@
         ctx.beginPath();
         ctx.rect(padL, padT, plotW, plotH);
         ctx.clip();
-        ctx.strokeStyle = state.ballType === 'billiard' ? '#38bdf8' : '#a3e635';
+        ctx.strokeStyle = state.ballType === 'billiard' ? pal.curveBilliard : pal.curveTennis;
         ctx.lineWidth = 2.8 * dpr;
         ctx.beginPath();
         curCurve.forEach(function (pt, idx) {
@@ -1080,7 +1266,7 @@
         const px = gx(state.d);
         const py = gy(state.activeSim.H_max);
         ctx.save();
-        ctx.strokeStyle = 'rgba(250, 204, 21, 0.55)';
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.65)';
         ctx.setLineDash([3 * dpr, 3 * dpr]);
         ctx.lineWidth = 1.4 * dpr;
         ctx.beginPath();
@@ -1091,14 +1277,14 @@
 
         ctx.beginPath();
         ctx.arc(px, py, 5.5 * dpr, 0, Math.PI * 2);
-        ctx.fillStyle = '#facc15';
+        ctx.fillStyle = pal.dotFill;
         ctx.fill();
-        ctx.strokeStyle = '#0f172a';
+        ctx.strokeStyle = pal.dotStroke;
         ctx.lineWidth = 1.8 * dpr;
         ctx.stroke();
 
         const label = 'd=' + state.d.toFixed(1) + ', H=' + state.activeSim.H_max.toFixed(1);
-        ctx.fillStyle = '#fef08a';
+        ctx.fillStyle = pal.dotText;
         ctx.font = 'bold ' + Math.round(11 * dpr) + 'px Consolas, sans-serif';
         ctx.textAlign = px > padL + plotW * 0.65 ? 'right' : 'left';
         ctx.fillText(label, px + (px > padL + plotW * 0.65 ? -8 * dpr : 8 * dpr), Math.max(padT + 14 * dpr, py - 8 * dpr));
@@ -1187,6 +1373,9 @@
           state.simTime = sim.timeline.tEnd;
           state.animMode = 'done';
           state.lockedResult = sim;
+          el.dashH.classList.remove('digit-flash');
+          void el.dashH.offsetWidth;
+          el.dashH.classList.add('digit-flash');
         }
         updateDashboard();
         updatePhysicsCards();
@@ -1256,11 +1445,49 @@
       recomputeActiveSim(false);
     });
 
+    if (el.themeSwitcher) {
+      el.themeSwitcher.addEventListener('click', function (ev) {
+        const btn = ev.target.closest('.theme-pill');
+        if (!btn) return;
+        applyTheme(btn.getAttribute('data-theme-opt'));
+      });
+    }
+
+    if (el.viewTabs) {
+      el.viewTabs.addEventListener('click', function (ev) {
+        const btn = ev.target.closest('.view-tab');
+        if (!btn) return;
+        applyViewTab(btn.getAttribute('data-view-opt'));
+      });
+    }
+
     el.btnBallBilliard.addEventListener('click', function () { selectBall('billiard', false); });
     el.btnBallTennis.addEventListener('click', function () { selectBall('tennis', false); });
     el.btnRandomBall.addEventListener('click', function () {
-      const next = Math.random() < 0.5 ? 'billiard' : 'tennis';
-      selectBall(next, true);
+      if (state.rouletting) return;
+      state.rouletting = true;
+      const finalChoice = Math.random() < 0.5 ? 'billiard' : 'tennis';
+      let step = 0;
+      const totalSteps = 6;
+      el.sensorBadge.classList.add('roulette-spin');
+      el.sensorBadge.textContent = '🎲 กำลังสุ่มลูกกลม...';
+
+      function tickRoulette() {
+        const showBilliard = step % 2 === 0;
+        el.btnBallBilliard.classList.toggle('roulette-active', showBilliard);
+        el.btnBallTennis.classList.toggle('roulette-active', !showBilliard);
+        step += 1;
+        if (step < totalSteps) {
+          setTimeout(tickRoulette, 70);
+        } else {
+          el.btnBallBilliard.classList.remove('roulette-spin', 'roulette-active');
+          el.btnBallTennis.classList.remove('roulette-spin', 'roulette-active');
+          el.sensorBadge.classList.remove('roulette-spin');
+          state.rouletting = false;
+          selectBall(finalChoice, true);
+        }
+      }
+      tickRoulette();
     });
 
     el.btnRange1.addEventListener('click', function () { selectRange(0); });
@@ -1424,6 +1651,8 @@
     });
 
     // Initial bootstrap
+    applyTheme(state.theme);
+    applyViewTab(state.view);
     syncInputsFromParams();
     recomputeCurvesAndTable();
     const initTarget = getCurrentTarget();
