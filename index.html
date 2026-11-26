@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Applied Physics Challenge 2026 – Simulation</title>
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
-<body data-theme="neon" data-view="all">
+<body data-theme="aiia" data-view="all">
   <pre id="errlog" hidden></pre>
 
   <header class="topbar">
@@ -49,10 +49,14 @@
       </label>
 
       <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="สลับธีมสี">
-        <button type="button" class="theme-pill active" data-theme-opt="neon">🌌 Neon Lab</button>
+        <button type="button" class="theme-pill active" data-theme-opt="aiia">🌸 Aiia</button>
+        <button type="button" id="btnAiiaMode" class="aiia-mode-btn" title="สลับโหมดมืด/สว่างสำหรับธีม Aiia">🌙</button>
+        <button type="button" class="theme-pill" data-theme-opt="neon">🌌 Neon Lab</button>
         <button type="button" class="theme-pill" data-theme-opt="light">☀️ Light</button>
         <button type="button" class="theme-pill" data-theme-opt="arcade">🎮 Arcade</button>
       </div>
+
+      <button type="button" id="btnFullscreen" class="toggle-btn" title="ขยายเต็มหน้าจอสำหรับนำเสนอ (กด F)">⛶ เต็มจอ</button>
     </div>
   </header>
 
@@ -61,6 +65,7 @@
       <button type="button" class="view-tab active" data-view-opt="all">📋 แสดงทั้งหมด (Full Page)</button>
       <button type="button" class="view-tab" data-view-opt="physics">⚡ ฟิสิกส์ 3 ช่วง</button>
       <button type="button" class="view-tab" data-view-opt="graph">📈 กราฟวิเคราะห์</button>
+      <button type="button" class="view-tab" data-view-opt="results">📝 บันทึกผล</button>
       <button type="button" class="view-tab" data-view-opt="table">🤖 โค้ด Arduino</button>
       <button type="button" class="view-tab" data-view-opt="calib">⚙️ ตั้งค่า Calibration</button>
     </div>
@@ -92,110 +97,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Competition Controls -->
-      <div class="card controls-card">
-        <div class="card-head">
-          <h2>จำลองกติกาการแข่งขัน &amp; ปุ่มกด 4 ปุ่ม</h2>
-          <span id="sensorBadge" class="sensor-badge">ตรวจจับอัตโนมัติ: ลูกบิลเลียด</span>
-        </div>
-
-        <div class="control-groups">
-          <div class="ctrl-group">
-            <div class="ctrl-label">1. เลือกหรือสุ่มลูกกลม (วางบนแท่นสีเทา)</div>
-            <div class="btn-row">
-              <button type="button" id="btnBallBilliard" class="btn btn-3d ball-btn active">
-                <span class="led-dot"></span>
-                <span>🎱 ลูกบิลเลียด (170 g)</span>
-              </button>
-              <button type="button" id="btnBallTennis" class="btn btn-3d ball-btn">
-                <span class="led-dot"></span>
-                <span>🎾 ลูกเทนนิส (58 g)</span>
-              </button>
-              <button type="button" id="btnRandomBall" class="btn btn-3d accent-outline">
-                <span class="led-dot"></span>
-                <span>🎲 สุ่มลูก (Random)</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="ctrl-group">
-            <div class="ctrl-label">2. ปุ่มกดระบบ (4 ปุ่มตามโจทย์ + Reset)</div>
-            <div class="btn-row four-buttons">
-              <button type="button" id="btnRange1" class="btn btn-3d range-btn r-btn-1 active">
-                <span class="led-dot"></span>
-                <span class="r-title">ระยะที่ 1</span>
-                <small id="lblRange1">40–50 cm</small>
-              </button>
-              <button type="button" id="btnRange2" class="btn btn-3d range-btn r-btn-2">
-                <span class="led-dot"></span>
-                <span class="r-title">ระยะที่ 2</span>
-                <small id="lblRange2">50–60 cm</small>
-              </button>
-              <button type="button" id="btnRange3" class="btn btn-3d range-btn r-btn-3">
-                <span class="led-dot"></span>
-                <span class="r-title">ระยะที่ 3</span>
-                <small id="lblRange3">60–70 cm</small>
-              </button>
-              <button type="button" id="btnStart" class="btn btn-3d start-btn">
-                <span class="led-dot pulse"></span>
-                <span>▶ START</span>
-              </button>
-              <button type="button" id="btnReset" class="btn btn-3d reset-btn">↺ Reset</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Graph Card -->
-      <div class="card graph-card" id="graphCard" data-panel="graph">
-        <div class="card-head">
-          <h2>กราฟวิเคราะห์: ความสูงลูกกอล์ฟ <code>H</code> เทียบระยะเลื่อนสามเหลี่ยม <code>d</code></h2>
-          <span class="graph-sub" id="graphSub">เทียบเส้นโค้งลูกบิลเลียดกับลูกเทนนิส</span>
-        </div>
-        <div class="graph-wrap">
-          <canvas id="graphCanvas"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <!-- Right Column: Web Dashboard + 3 Physics Cards + Arduino Table + Calibration -->
-    <section class="right-col" id="rightCol">
-      <!-- Web Dashboard (5 required items) -->
-      <div class="card dashboard-card">
-        <div class="card-head">
-          <h2>Web Browser Dashboard (5 รายการตามกติกา)</h2>
-          <span id="dashStatusTag" class="dash-tag pending">รอกด START</span>
-        </div>
-
-        <div class="dash-grid">
-          <div class="dash-item dash-c1">
-            <div class="dash-k"><span class="dash-num">01</span> ชนิดของลูกกลมที่เลือก</div>
-            <div class="dash-v" id="dashBall">ลูกบิลเลียด</div>
-          </div>
-          <div class="dash-item dash-c2">
-            <div class="dash-k"><span class="dash-num">02</span> ระยะที่ต้องทำได้</div>
-            <div class="dash-v" id="dashTarget">40–50 cm</div>
-          </div>
-          <div class="dash-item dash-c3">
-            <div class="dash-k"><span class="dash-num">03</span> ระยะเลื่อนแท่นสามเหลี่ยม (จากจุดกึ่งกลาง 25 cm)</div>
-            <div class="dash-v mono" id="dashD">10.2 cm</div>
-          </div>
-          <div class="dash-item dash-c4">
-            <div class="dash-k"><span class="dash-num">04</span> ความสูงลูกกอล์ฟที่วัดได้</div>
-            <div class="dash-v mono" id="dashH">— (คาดการณ์ 45.0 cm)</div>
-          </div>
-          <div class="dash-item dash-c5 dash-wide" id="dashSuccessBox">
-            <div class="dash-k"><span class="dash-num">05</span> สัญลักษณ์แสดงความสำเร็จของการทำงาน</div>
-            <div class="dash-success pending" id="dashSuccess">
-              <span class="sym">⏳</span>
-              <span id="dashSuccessText">ตั้งค่าพร้อมแล้ว กดปุ่ม START เพื่อทดสอบยิง</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="dashWarnings" class="warnings-box" hidden></div>
       </div>
 
       <!-- 3 Physics Presentation Cards -->
@@ -250,6 +151,144 @@
             </div>
             <div class="calc-lines" id="calcCard3"></div>
           </article>
+        </div>
+      </div>
+
+      <!-- Graph Card -->
+      <div class="card graph-card" id="graphCard" data-panel="graph">
+        <div class="card-head">
+          <h2>กราฟวิเคราะห์: ความสูงลูกกอล์ฟ <code>H</code> เทียบระยะเลื่อนสามเหลี่ยม <code>d</code></h2>
+          <span class="graph-sub" id="graphSub">เทียบเส้นโค้งลูกบิลเลียดกับลูกเทนนิส</span>
+        </div>
+        <div class="graph-wrap">
+          <canvas id="graphCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Web Dashboard + Competition Controls + Arduino Table + Calibration -->
+    <section class="right-col" id="rightCol">
+      <!-- Web Dashboard (5 required items) -->
+      <div class="card dashboard-card">
+        <div class="card-head">
+          <h2>Web Browser Dashboard (5 รายการตามกติกา)</h2>
+          <span id="dashStatusTag" class="dash-tag pending">รอกด START</span>
+        </div>
+
+        <div class="dash-grid">
+          <div class="dash-item dash-c1">
+            <div class="dash-k"><span class="dash-num">01</span> ชนิดของลูกกลมที่เลือก</div>
+            <div class="dash-v" id="dashBall">ลูกบิลเลียด</div>
+          </div>
+          <div class="dash-item dash-c2">
+            <div class="dash-k"><span class="dash-num">02</span> ระยะที่ต้องทำได้</div>
+            <div class="dash-v" id="dashTarget">40–50 cm</div>
+          </div>
+          <div class="dash-item dash-c3">
+            <div class="dash-k"><span class="dash-num">03</span> ระยะเลื่อนแท่นสามเหลี่ยม (จากจุดกึ่งกลาง 25 cm)</div>
+            <div class="dash-v mono" id="dashD">10.2 cm</div>
+          </div>
+          <div class="dash-item dash-c4">
+            <div class="dash-k"><span class="dash-num">04</span> ความสูงลูกกอล์ฟที่วัดได้</div>
+            <div class="dash-v mono" id="dashH">— (คาดการณ์ 45.0 cm)</div>
+          </div>
+          <div class="dash-item dash-c5 dash-wide" id="dashSuccessBox">
+            <div class="dash-k"><span class="dash-num">05</span> สัญลักษณ์แสดงความสำเร็จของการทำงาน</div>
+            <div class="dash-success pending" id="dashSuccess">
+              <span class="sym">⏳</span>
+              <span id="dashSuccessText">ตั้งค่าพร้อมแล้ว กดปุ่ม START เพื่อทดสอบยิง</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="dashWarnings" class="warnings-box" hidden></div>
+      </div>
+
+      <!-- Competition Controls -->
+      <div class="card controls-card">
+        <div class="card-head">
+          <h2>จำลองกติกาการแข่งขัน &amp; ปุ่มกด 4 ปุ่ม</h2>
+          <span id="sensorBadge" class="sensor-badge">ตรวจจับอัตโนมัติ: ลูกบิลเลียด</span>
+        </div>
+
+        <div class="control-groups">
+          <div class="ctrl-group">
+            <div class="ctrl-label">1. เลือกหรือสุ่มลูกกลม (วางบนแท่นสีเทา)</div>
+            <div class="btn-row">
+              <button type="button" id="btnBallBilliard" class="btn btn-3d ball-btn active">
+                <span class="led-dot"></span>
+                <span>🎱 ลูกบิลเลียด (170 g)</span>
+              </button>
+              <button type="button" id="btnBallTennis" class="btn btn-3d ball-btn">
+                <span class="led-dot"></span>
+                <span>🎾 ลูกเทนนิส (58 g)</span>
+              </button>
+              <button type="button" id="btnRandomBall" class="btn btn-3d accent-outline">
+                <span class="led-dot"></span>
+                <span>🎲 สุ่มลูก (Random)</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="ctrl-group">
+            <div class="ctrl-label">2. ปุ่มกดระบบ (4 ปุ่มตามโจทย์ + Reset)</div>
+            <div class="btn-row four-buttons">
+              <button type="button" id="btnRange1" class="btn btn-3d range-btn r-btn-1 active">
+                <span class="led-dot"></span>
+                <span class="r-title">ระยะที่ 1</span>
+                <small id="lblRange1">40–50 cm</small>
+              </button>
+              <button type="button" id="btnRange2" class="btn btn-3d range-btn r-btn-2">
+                <span class="led-dot"></span>
+                <span class="r-title">ระยะที่ 2</span>
+                <small id="lblRange2">50–60 cm</small>
+              </button>
+              <button type="button" id="btnRange3" class="btn btn-3d range-btn r-btn-3">
+                <span class="led-dot"></span>
+                <span class="r-title">ระยะที่ 3</span>
+                <small id="lblRange3">60–70 cm</small>
+              </button>
+              <button type="button" id="btnStart" class="btn btn-3d start-btn">
+                <span class="led-dot pulse"></span>
+                <span>▶ START</span>
+              </button>
+              <button type="button" id="btnReset" class="btn btn-3d reset-btn">↺ Reset</button>
+            </div>
+          </div>
+          <div class="shortcut-hint">⌨️ คีย์ลัด: <code>1-2-3</code> เลือกระยะ • <code>B/T</code> เลือกลูก • <code>X</code> สุ่ม • <code>Space</code> ยิง • <code>R</code> รีเซ็ต • <code>F</code> เต็มจอ</div>
+        </div>
+      </div>
+
+      <!-- Experiment Results Log -->
+      <div class="card results-card" id="resultsCard" data-panel="results">
+        <div class="card-head">
+          <h2>📝 ตารางบันทึกผลการทดลอง</h2>
+          <div class="results-actions">
+            <button type="button" id="btnExportCsv" class="btn small-btn export-csv-btn">📊 Excel (.csv)</button>
+            <button type="button" id="btnExportPng" class="btn small-btn export-png-btn">🖼️ รูปภาพ (.png)</button>
+            <button type="button" id="btnClearResults" class="btn small-btn danger-btn">🗑 ล้างทั้งหมด</button>
+          </div>
+        </div>
+        <div class="results-summary" id="resultsSummary"></div>
+        <div class="results-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>เวลา</th>
+                <th>ลูก</th>
+                <th>ระยะเป้า</th>
+                <th>d (cm)</th>
+                <th>H ที่ได้ (cm)</th>
+                <th>คลาดจากกึ่งกลาง (cm)</th>
+                <th>ผล</th>
+                <th>🗑</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <tr><td colspan="9" class="results-empty">ยังไม่มีผล — กด START เพื่อบันทึก</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -387,7 +426,9 @@
     </section>
   </main>
 
-  <script src="physics.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script src="physics.js?v=5"></script>
+  <script src="logo.js?v=5"></script>
+  <script src="results.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

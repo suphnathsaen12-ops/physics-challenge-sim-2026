@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'ap_challenge_2026_sim_v4';
+  const STORAGE_KEY = 'ap_challenge_2026_sim_v5';
 
   function logError(err) {
     const pre = document.getElementById('errlog');
@@ -41,7 +41,7 @@
         JSON.stringify({
           params: params,
           presetId: presetId,
-          theme: theme || prev.theme || 'neon',
+          theme: theme || prev.theme || 'aiia',
           view: view || prev.view || 'all'
         })
       );
@@ -52,10 +52,12 @@
 
   function initApp() {
     const stored = loadStoredState();
+    const initialTheme = stored && stored.theme ? stored.theme : 'aiia';
     const state = {
       params: Object.assign(Physics.defaultParams(), stored && stored.params ? stored.params : {}),
       presetId: stored && stored.presetId ? stored.presetId : 'tuned',
-      theme: stored && stored.theme ? stored.theme : 'neon',
+      theme: initialTheme,
+      aiiaVariant: initialTheme === 'aiia-light' ? 'aiia-light' : 'aiia',
       view: stored && stored.view ? stored.view : 'all',
       ballType: 'billiard',
       rangeIndex: 0,
@@ -88,6 +90,8 @@
     // DOM References
     const el = {
       themeSwitcher: document.getElementById('themeSwitcher'),
+      btnAiiaMode: document.getElementById('btnAiiaMode'),
+      btnFullscreen: document.getElementById('btnFullscreen'),
       viewTabs: document.getElementById('viewTabs'),
       leftCol: document.getElementById('leftCol'),
       rightCol: document.getElementById('rightCol'),
@@ -537,11 +541,12 @@
     }
 
     function getCanvasColors() {
-      if (state.theme === 'light') {
+      if (state.theme === 'light' || state.theme === 'aiia-light') {
+        const isAiiaLight = state.theme === 'aiia-light';
         return {
-          grid: 'rgba(15, 23, 42, 0.08)',
-          groundBg: '#e2e8f0',
-          groundLine: '#475569',
+          grid: isAiiaLight ? 'rgba(0, 149, 208, 0.08)' : 'rgba(15, 23, 42, 0.08)',
+          groundBg: isAiiaLight ? '#ede7f3' : '#e2e8f0',
+          groundLine: isAiiaLight ? '#6b21a8' : '#475569',
           rulerText: '#334155',
           previewLine: 'rgba(71, 85, 105, 0.55)',
           previewText: '#334155',
@@ -549,8 +554,8 @@
           apexText: '#15803d',
           axisLine: '#64748b',
           axisText: '#1e293b',
-          curveBilliard: '#0284c7',
-          curveTennis: '#65a30d',
+          curveBilliard: isAiiaLight ? '#0095d0' : '#0284c7',
+          curveTennis: isAiiaLight ? '#d9007f' : '#65a30d',
           altCurve: 'rgba(100, 116, 139, 0.45)',
           dotFill: '#eab308',
           dotStroke: '#0f172a',
@@ -577,6 +582,26 @@
           dotText: '#fde047'
         };
       }
+      if (state.theme === 'aiia') {
+        return {
+          grid: 'rgba(0, 174, 239, 0.10)',
+          groundBg: '#15112c',
+          groundLine: '#00AEEF',
+          rulerText: '#cbd5e1',
+          previewLine: 'rgba(180, 186, 219, 0.48)',
+          previewText: '#e2e8f0',
+          apexLine: '#22c55e',
+          apexText: '#86efac',
+          axisLine: '#6366f1',
+          axisText: '#e2e8f0',
+          curveBilliard: '#00AEEF',
+          curveTennis: '#EC008C',
+          altCurve: 'rgba(180, 186, 219, 0.44)',
+          dotFill: '#facc15',
+          dotStroke: '#0b091c',
+          dotText: '#fef08a'
+        };
+      }
       return {
         grid: 'rgba(148, 163, 184, 0.08)',
         groundBg: '#1e293b',
@@ -598,13 +623,25 @@
     }
 
     function applyTheme(theme) {
-      state.theme = theme === 'light' || theme === 'arcade' ? theme : 'neon';
+      const validThemes = ['aiia', 'aiia-light', 'neon', 'light', 'arcade'];
+      state.theme = validThemes.indexOf(theme) >= 0 ? theme : 'aiia';
+      if (state.theme === 'aiia' || state.theme === 'aiia-light') {
+        state.aiiaVariant = state.theme;
+      }
       document.body.setAttribute('data-theme', state.theme);
+      const isAiia = state.theme === 'aiia' || state.theme === 'aiia-light';
       if (el.themeSwitcher) {
         const pills = el.themeSwitcher.querySelectorAll('.theme-pill');
         pills.forEach(function (btn) {
-          btn.classList.toggle('active', btn.getAttribute('data-theme-opt') === state.theme);
+          const opt = btn.getAttribute('data-theme-opt');
+          const active = opt === 'aiia' ? isAiia : opt === state.theme;
+          btn.classList.toggle('active', active);
         });
+      }
+      if (el.btnAiiaMode) {
+        el.btnAiiaMode.hidden = !isAiia;
+        el.btnAiiaMode.disabled = !isAiia;
+        el.btnAiiaMode.textContent = state.theme === 'aiia-light' ? '☀️' : '🌙';
       }
       saveStoredState(state.params, state.presetId, state.theme, state.view);
       drawStage();
@@ -612,7 +649,7 @@
     }
 
     function applyViewTab(view) {
-      const validViews = ['all', 'physics', 'graph', 'table', 'calib'];
+      const validViews = ['all', 'physics', 'graph', 'results', 'table', 'calib'];
       state.view = validViews.indexOf(view) >= 0 ? view : 'all';
       document.body.setAttribute('data-view', state.view);
       if (el.viewTabs) {
@@ -1295,6 +1332,25 @@
     /* ===========================
      *  Simulation Loop & Actions
      * =========================== */
+    function recordResult(sim) {
+      if (!window.ResultsLog || !sim || !sim.valid) return;
+      const target = getCurrentTarget();
+      const H = sim.H_max;
+      const pass = H >= target.min && H <= target.max;
+      window.ResultsLog.add({
+        ball: state.ballType,
+        ballLabel: Physics.BALL_LABELS[state.ballType],
+        rangeLabel: target.label,
+        min: target.min,
+        max: target.max,
+        d: state.d,
+        H: H,
+        pass: pass,
+        model: state.opts.ideal ? 'อุดมคติ' : 'สมจริง',
+        path: state.opts.guided ? 'ราง' : 'อิสระ'
+      });
+    }
+
     function startSimulation(instantMode) {
       state.activeSim = Physics.simulate(state.params, state.ballType, state.d, state.opts);
       if (!state.activeSim || !state.activeSim.valid) return;
@@ -1303,6 +1359,7 @@
         state.simTime = state.activeSim.timeline.tEnd;
         state.animMode = 'done';
         state.lockedResult = state.activeSim;
+        recordResult(state.activeSim);
         updateDashboard();
         updatePhysicsCards();
         drawStage();
@@ -1373,6 +1430,7 @@
           state.simTime = sim.timeline.tEnd;
           state.animMode = 'done';
           state.lockedResult = sim;
+          recordResult(sim);
           el.dashH.classList.remove('digit-flash');
           void el.dashH.offsetWidth;
           el.dashH.classList.add('digit-flash');
@@ -1445,11 +1503,88 @@
       recomputeActiveSim(false);
     });
 
+    function toggleFullscreen() {
+      const doc = document;
+      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement);
+      if (!isFs) {
+        const elFs = doc.documentElement;
+        const req = elFs.requestFullscreen || elFs.webkitRequestFullscreen;
+        if (req) {
+          try {
+            const p = req.call(elFs);
+            if (p && p.catch) p.catch(function () {});
+          } catch (e) {}
+        }
+      } else {
+        const exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+        if (exit) {
+          try {
+            const p = exit.call(doc);
+            if (p && p.catch) p.catch(function () {});
+          } catch (e) {}
+        }
+      }
+    }
+
+    function updateFullscreenUI() {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      document.body.classList.toggle('is-fullscreen', isFs);
+      if (el.btnFullscreen) {
+        el.btnFullscreen.classList.toggle('active', isFs);
+        el.btnFullscreen.textContent = isFs ? '✕ ออกเต็มจอ' : '⛶ เต็มจอ';
+      }
+      drawStage();
+      drawGraph();
+    }
+
+    if (el.btnFullscreen) {
+      el.btnFullscreen.addEventListener('click', toggleFullscreen);
+    }
+    document.addEventListener('fullscreenchange', updateFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
+
+    document.addEventListener('keydown', function (ev) {
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      const tgt = ev.target;
+      if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'SELECT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
+        return;
+      }
+      const key = ev.key;
+      if (key === '1') { selectRange(0); }
+      else if (key === '2') { selectRange(1); }
+      else if (key === '3') { selectRange(2); }
+      else if (key === 'b' || key === 'B') { selectBall('billiard', false); }
+      else if (key === 't' || key === 'T') { selectBall('tennis', false); }
+      else if (key === 'x' || key === 'X') { if (el.btnRandomBall) el.btnRandomBall.click(); }
+      else if (key === ' ' || ev.code === 'Space') {
+        ev.preventDefault();
+        if (document.activeElement && document.activeElement.tagName === 'BUTTON') {
+          document.activeElement.blur();
+        }
+        if (el.btnStart) el.btnStart.click();
+      } else if (key === 'r' || key === 'R') {
+        if (el.btnReset) el.btnReset.click();
+      } else if (key === 'f' || key === 'F') {
+        toggleFullscreen();
+      }
+    });
+
     if (el.themeSwitcher) {
       el.themeSwitcher.addEventListener('click', function (ev) {
+        const modeBtn = ev.target.closest('#btnAiiaMode');
+        if (modeBtn) {
+          const nextVariant = state.theme === 'aiia-light' ? 'aiia' : 'aiia-light';
+          applyTheme(nextVariant);
+          return;
+        }
         const btn = ev.target.closest('.theme-pill');
         if (!btn) return;
-        applyTheme(btn.getAttribute('data-theme-opt'));
+        const opt = btn.getAttribute('data-theme-opt');
+        if (opt === 'aiia') {
+          applyTheme(state.aiiaVariant || 'aiia');
+        } else {
+          applyTheme(opt);
+        }
       });
     }
 
@@ -1660,12 +1795,13 @@
     state.d = initSol.d;
     recomputeActiveSim(false);
 
-    // Support #autorun for automated visual/runtime verification
+    // Support #autorun / #autorun-instant for automated visual/runtime verification
     if (window.location.hash === '#autorun') {
       state.slowMo = 1.0;
       el.rngSlowMo.value = '1.0';
       el.lblSlowMo.textContent = '1.00x';
-      startSimulation(false);
+      const isInstant = window.location.search.indexOf('instant=1') >= 0;
+      startSimulation(isInstant);
     }
   }
 
