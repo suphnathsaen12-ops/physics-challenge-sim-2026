@@ -4,9 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Applied Physics Challenge 2026 – Simulation</title>
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body data-theme="aiia" data-view="all">
+  <div id="splash" class="splash-overlay" aria-label="หน้าเปิด Team Aiia">
+    <div class="splash-box">
+      <div class="splash-logo-wrap">
+        <img id="splashLogo" alt="Aiia Logo" />
+      </div>
+      <div class="splash-team">Team Aiia</div>
+      <div class="splash-sub">Applied Physics Challenge 2026</div>
+      <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+      <div class="splash-hint">คลิกหรือกดปุ่มใดก็ได้เพื่อเข้าสู่ซิมูเลชัน</div>
+    </div>
+  </div>
+  <script>
+    if (window.location.hash === '#autorun' || window.location.search.indexOf('nosplash') >= 0) {
+      var sp = document.getElementById('splash');
+      if (sp) sp.style.display = 'none';
+    }
+  </script>
   <pre id="errlog" hidden></pre>
 
   <header class="topbar">
@@ -55,6 +72,13 @@
         <button type="button" class="theme-pill" data-theme-opt="light">☀️ Light</button>
         <button type="button" class="theme-pill" data-theme-opt="arcade">🎮 Arcade</button>
       </div>
+
+      <button type="button" id="btnRender" class="toggle-btn active" title="สลับระหว่างภาพ 2.5D สมจริง กับแผนภาพ 2D เดิม">
+        <span class="toggle-label">🎨 ภาพ:</span>
+        <strong id="lblRender">สมจริง</strong>
+      </button>
+
+      <button type="button" id="btnSound" class="toggle-btn active" title="เปิด/ปิดเสียงประกอบ">🔊 เสียง</button>
 
       <button type="button" id="btnFullscreen" class="toggle-btn" title="ขยายเต็มหน้าจอสำหรับนำเสนอ (กด F)">⛶ เต็มจอ</button>
     </div>
@@ -169,7 +193,7 @@
     <!-- Right Column: Web Dashboard + Competition Controls + Arduino Table + Calibration -->
     <section class="right-col" id="rightCol">
       <!-- Web Dashboard (5 required items) -->
-      <div class="card dashboard-card">
+      <div class="card dashboard-card" id="dashboardCard">
         <div class="card-head">
           <h2>Web Browser Dashboard (5 รายการตามกติกา)</h2>
           <span id="dashStatusTag" class="dash-tag pending">รอกด START</span>
@@ -426,9 +450,10 @@
     </section>
   </main>
 
-  <script src="physics.js?v=5"></script>
-  <script src="logo.js?v=5"></script>
-  <script src="results.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="physics.js?v=6"></script>
+  <script src="logo.js?v=6"></script>
+  <script src="results.js?v=6"></script>
+  <script src="sound.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

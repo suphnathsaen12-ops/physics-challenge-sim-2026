@@ -33,7 +33,7 @@
     }
   }
 
-  function saveStoredState(params, presetId, theme, view) {
+  function saveStoredState(params, presetId, theme, view, renderMode) {
     try {
       const prev = loadStoredState() || {};
       localStorage.setItem(
@@ -42,7 +42,8 @@
           params: params,
           presetId: presetId,
           theme: theme || prev.theme || 'aiia',
-          view: view || prev.view || 'all'
+          view: view || prev.view || 'all',
+          render: renderMode || prev.render || 'real'
         })
       );
     } catch (e) {
@@ -53,6 +54,7 @@
   function initApp() {
     const stored = loadStoredState();
     const initialTheme = stored && stored.theme ? stored.theme : 'aiia';
+    const initialRender = stored && stored.render === 'flat' ? 'flat' : 'real';
     const state = {
       params: Object.assign(Physics.defaultParams(), stored && stored.params ? stored.params : {}),
       presetId: stored && stored.presetId ? stored.presetId : 'tuned',
@@ -65,7 +67,8 @@
       opts: {
         ideal: false,
         guided: true,
-        measure: 'bottom'
+        measure: 'bottom',
+        render: initialRender
       },
       showVectors: true,
       slowMo: 0.5,
@@ -84,14 +87,25 @@
       solveResult: null,
       curvesCache: { billiard: [], tennis: [] },
       draggingFulcrum: false,
-      hoveringFulcrum: false
+      hoveringFulcrum: false,
+      countAnim: null,
+      flashTimer: null,
+      impactTriggered: false,
+      launchTriggered: false,
+      shakeUntil: 0,
+      splashOpen: false
     };
 
     // DOM References
     const el = {
+      splash: document.getElementById('splash'),
+      splashLogo: document.getElementById('splashLogo'),
       themeSwitcher: document.getElementById('themeSwitcher'),
       btnAiiaMode: document.getElementById('btnAiiaMode'),
+      btnRender: document.getElementById('btnRender'),
+      lblRender: document.getElementById('lblRender'),
       btnFullscreen: document.getElementById('btnFullscreen'),
+      dashboardCard: document.getElementById('dashboardCard'),
       viewTabs: document.getElementById('viewTabs'),
       leftCol: document.getElementById('leftCol'),
       rightCol: document.getElementById('rightCol'),
@@ -251,8 +265,21 @@
       el.arduinoCodePreview.textContent = codeText;
     }
 
+    function clearFlashAndCount() {
+      if (state.countAnim) state.countAnim.active = false;
+      state.countAnim = null;
+      if (state.flashTimer) {
+        clearTimeout(state.flashTimer);
+        state.flashTimer = null;
+      }
+      if (el.dashboardCard) {
+        el.dashboardCard.classList.remove('flash-ok', 'flash-fail');
+      }
+    }
+
     function recomputeActiveSim(keepLocked) {
       if (!keepLocked) {
+        clearFlashAndCount();
         state.lockedResult = null;
         if (state.animMode === 'done' || state.animMode === 'running') {
           state.animMode = 'idle';
@@ -299,6 +326,13 @@
       el.lblVectors.textContent = state.showVectors ? 'เปิด' : 'ปิด';
       el.btnVectors.classList.toggle('active', state.showVectors);
 
+      if (el.lblRender && el.btnRender) {
+        const isReal = state.opts.render === 'real';
+        el.lblRender.textContent = isReal ? 'สมจริง' : 'แผนภาพ';
+        el.btnRender.classList.toggle('active', isReal);
+        el.btnRender.classList.toggle('alt-active', !isReal);
+      }
+
       el.modePill.textContent =
         (state.opts.ideal ? 'โหมดอุดมคติ' : 'โหมดสมจริง') +
         ' • ' +
@@ -338,7 +372,9 @@
         el.dashSuccess.querySelector('.sym').textContent = '▶';
         el.dashSuccessText.textContent = 'กำลังปล่อยลูกและวัดความสูงลูกกอล์ฟ...';
       } else if (state.lockedResult) {
-        el.dashH.textContent = H.toFixed(2) + ' cm';
+        if (!(state.countAnim && state.countAnim.active)) {
+          el.dashH.textContent = H.toFixed(2) + ' cm';
+        }
         if (inRange) {
           el.dashStatusTag.className = 'dash-tag ok';
           el.dashStatusTag.textContent = 'สำเร็จ';
@@ -547,6 +583,13 @@
           grid: isAiiaLight ? 'rgba(0, 149, 208, 0.08)' : 'rgba(15, 23, 42, 0.08)',
           groundBg: isAiiaLight ? '#ede7f3' : '#e2e8f0',
           groundLine: isAiiaLight ? '#6b21a8' : '#475569',
+          labWallTop: isAiiaLight ? '#f4f8ff' : '#f1f5f9',
+          labWallBot: isAiiaLight ? '#fceef7' : '#e2e8f0',
+          labSpotlight: isAiiaLight ? 'rgba(0, 174, 239, 0.14)' : 'rgba(56, 189, 248, 0.14)',
+          labTableTop: isAiiaLight ? '#e8e2f2' : '#cbd5e1',
+          labTableBot: isAiiaLight ? '#d3c9e4' : '#94a3b8',
+          labTileLine: 'rgba(15, 23, 42, 0.08)',
+          labFloorEdge: 'rgba(255, 255, 255, 0.7)',
           rulerText: '#334155',
           previewLine: 'rgba(71, 85, 105, 0.55)',
           previewText: '#334155',
@@ -567,6 +610,13 @@
           grid: 'rgba(236, 72, 153, 0.12)',
           groundBg: '#170a2e',
           groundLine: '#ec4899',
+          labWallTop: '#0b0419',
+          labWallBot: '#180932',
+          labSpotlight: 'rgba(236, 72, 153, 0.18)',
+          labTableTop: '#1f0e3f',
+          labTableBot: '#0d051c',
+          labTileLine: 'rgba(34, 211, 238, 0.14)',
+          labFloorEdge: 'rgba(236, 72, 153, 0.55)',
           rulerText: '#c4b5fd',
           previewLine: 'rgba(196, 181, 253, 0.5)',
           previewText: '#e9d5ff',
@@ -587,6 +637,13 @@
           grid: 'rgba(0, 174, 239, 0.10)',
           groundBg: '#15112c',
           groundLine: '#00AEEF',
+          labWallTop: '#080615',
+          labWallBot: '#141030',
+          labSpotlight: 'rgba(0, 174, 239, 0.18)',
+          labTableTop: '#1e1942',
+          labTableBot: '#0b081b',
+          labTileLine: 'rgba(0, 174, 239, 0.12)',
+          labFloorEdge: 'rgba(0, 174, 239, 0.45)',
           rulerText: '#cbd5e1',
           previewLine: 'rgba(180, 186, 219, 0.48)',
           previewText: '#e2e8f0',
@@ -606,6 +663,13 @@
         grid: 'rgba(148, 163, 184, 0.08)',
         groundBg: '#1e293b',
         groundLine: '#64748b',
+        labWallTop: '#060b16',
+        labWallBot: '#111c32',
+        labSpotlight: 'rgba(56, 189, 248, 0.15)',
+        labTableTop: '#243248',
+        labTableBot: '#0f172a',
+        labTileLine: 'rgba(148, 163, 184, 0.12)',
+        labFloorEdge: 'rgba(148, 163, 184, 0.35)',
         rulerText: '#94a3b8',
         previewLine: 'rgba(148, 163, 184, 0.45)',
         previewText: '#cbd5e1',
@@ -643,7 +707,7 @@
         el.btnAiiaMode.disabled = !isAiia;
         el.btnAiiaMode.textContent = state.theme === 'aiia-light' ? '☀️' : '🌙';
       }
-      saveStoredState(state.params, state.presetId, state.theme, state.view);
+      saveStoredState(state.params, state.presetId, state.theme, state.view, state.opts.render);
       drawStage();
       drawGraph();
     }
@@ -668,9 +732,57 @@
       if (state.view === 'calib' && el.calibDetails) {
         el.calibDetails.open = true;
       }
-      saveStoredState(state.params, state.presetId, state.theme, state.view);
+      saveStoredState(state.params, state.presetId, state.theme, state.view, state.opts.render);
       drawStage();
       drawGraph();
+    }
+
+    function drawExtrudedBox(ctx, x1, y1, wPx, hPx, dx, dy, topFill, sideFill, edgeStroke, dpr) {
+      ctx.save();
+      // Top bevel/depth face
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 + dx, y1 + dy);
+      ctx.lineTo(x1 + wPx + dx, y1 + dy);
+      ctx.lineTo(x1 + wPx, y1);
+      ctx.closePath();
+      ctx.fillStyle = topFill;
+      ctx.fill();
+      if (edgeStroke) {
+        ctx.strokeStyle = edgeStroke;
+        ctx.lineWidth = 0.9 * dpr;
+        ctx.stroke();
+      }
+      // Right side depth face
+      ctx.beginPath();
+      ctx.moveTo(x1 + wPx, y1);
+      ctx.lineTo(x1 + wPx + dx, y1 + dy);
+      ctx.lineTo(x1 + wPx + dx, y1 + hPx + dy);
+      ctx.lineTo(x1 + wPx, y1 + hPx);
+      ctx.closePath();
+      ctx.fillStyle = sideFill;
+      ctx.fill();
+      if (edgeStroke) {
+        ctx.strokeStyle = edgeStroke;
+        ctx.lineWidth = 0.9 * dpr;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawFloorShadow(ctx, cx, cy, rx, ry, alpha) {
+      if (rx <= 0.5 || ry <= 0.5 || alpha <= 0.01) return;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(1, ry / rx);
+      const grad = ctx.createRadialGradient(0, 0, rx * 0.1, 0, 0, rx);
+      grad.addColorStop(0, 'rgba(2, 6, 23, ' + alpha.toFixed(2) + ')');
+      grad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     function drawStage() {
@@ -681,6 +793,11 @@
       const sim = state.activeSim;
       if (!sim || !sim.valid) return;
       const pal = getCanvasColors();
+      const isReal = state.opts.render === 'real';
+      const isLightTheme = state.theme === 'light' || state.theme === 'aiia-light';
+      const depthCm = 6;
+      const depX = 0.5 * depthCm * scale * Math.cos(Math.PI / 6);
+      const depY = -0.5 * depthCm * scale * Math.sin(Math.PI / 6);
 
       const sample =
         state.animMode === 'running' || state.animMode === 'done'
@@ -688,6 +805,39 @@
           : Physics.sampleState(sim, 0);
 
       ctx.clearRect(0, 0, w, h);
+
+      // Subtle 0.15s impact camera shake in realistic mode
+      let didShake = false;
+      const nowMs = performance.now();
+      if (isReal && state.shakeUntil > nowMs) {
+        const frac = (state.shakeUntil - nowMs) / 150;
+        const sx = Math.sin(nowMs * 0.25) * 3.0 * dpr * frac;
+        const sy = Math.cos(nowMs * 0.35) * 2.5 * dpr * frac;
+        ctx.save();
+        ctx.translate(sx, sy);
+        didShake = true;
+      }
+
+      // Lab wall + spotlight in realistic mode
+      if (isReal) {
+        ctx.save();
+        const yFloor = toPxY(0);
+        const wallGrad = ctx.createLinearGradient(0, 0, 0, yFloor);
+        wallGrad.addColorStop(0, pal.labWallTop);
+        wallGrad.addColorStop(1, pal.labWallBot);
+        ctx.fillStyle = wallGrad;
+        ctx.fillRect(0, 0, w, yFloor);
+
+        const spotX = toPxX(28);
+        const spotY = toPxY(34);
+        const spotR = Math.max(w, h) * 0.58;
+        const spotGrad = ctx.createRadialGradient(spotX, spotY, scale * 4, spotX, spotY, spotR);
+        spotGrad.addColorStop(0, pal.labSpotlight);
+        spotGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = spotGrad;
+        ctx.fillRect(0, 0, w, yFloor);
+        ctx.restore();
+      }
 
       // Subtle background grid (10 cm)
       ctx.save();
@@ -709,34 +859,58 @@
       }
       ctx.restore();
 
-      // Target zone band
-      const target = getCurrentTarget();
-      const yBandTop = toPxY(target.max);
-      const yBandBot = toPxY(target.min);
+      // Ground floor / Lab bench table
       ctx.save();
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
-      ctx.fillRect(toPxX(-8), yBandTop, 16 * scale, yBandBot - yBandTop);
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
-      ctx.setLineDash([4 * dpr, 4 * dpr]);
-      ctx.lineWidth = 1.2 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(toPxX(-8), yBandTop);
-      ctx.lineTo(toPxX(16), yBandTop);
-      ctx.moveTo(toPxX(-8), yBandBot);
-      ctx.lineTo(toPxX(16), yBandBot);
-      ctx.stroke();
-      ctx.restore();
+      const y0Px = toPxY(0);
+      if (isReal) {
+        const tableGrad = ctx.createLinearGradient(0, y0Px, 0, h);
+        tableGrad.addColorStop(0, pal.labTableTop);
+        tableGrad.addColorStop(1, pal.labTableBot);
+        ctx.fillStyle = tableGrad;
+        ctx.fillRect(0, y0Px, w, h - y0Px);
 
-      // Ground floor
-      ctx.save();
-      ctx.fillStyle = pal.groundBg;
-      ctx.fillRect(0, toPxY(0), w, h - toPxY(0));
+        // Faint lab bench tile joints
+        ctx.strokeStyle = pal.labTileLine;
+        ctx.lineWidth = 1 * dpr;
+        for (let tx = -10; tx <= 65; tx += 12.5) {
+          const tpx = toPxX(tx);
+          ctx.beginPath();
+          ctx.moveTo(tpx, y0Px);
+          ctx.lineTo(tpx, h);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = pal.labFloorEdge;
+        ctx.lineWidth = 1.2 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(0, y0Px + 1.5 * dpr);
+        ctx.lineTo(w, y0Px + 1.5 * dpr);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = pal.groundBg;
+        ctx.fillRect(0, y0Px, w, h - y0Px);
+      }
       ctx.strokeStyle = pal.groundLine;
       ctx.lineWidth = 2 * dpr;
       ctx.beginPath();
-      ctx.moveTo(0, toPxY(0));
-      ctx.lineTo(w, toPxY(0));
+      ctx.moveTo(0, y0Px);
+      ctx.lineTo(w, y0Px);
       ctx.stroke();
+
+      // Ambient apparatus ground shadows & live ball floor shadows
+      if (isReal) {
+        drawFloorShadow(ctx, toPxX(-4), y0Px + 1.2 * dpr, 5.2 * scale, 1.3 * scale, 0.34);
+        drawFloorShadow(ctx, toPxX(57), y0Px + 1.2 * dpr, 8.2 * scale, 1.5 * scale, 0.38);
+        drawFloorShadow(ctx, toPxX(sim.x_p), y0Px + 1.0 * dpr, 4.0 * scale, 1.0 * scale, 0.30);
+        if (sample) {
+          const hDrop = Math.max(0, sample.dropY - sim.timeline.r_ball);
+          const sDrop = 1 / (1 + hDrop / 26);
+          drawFloorShadow(ctx, toPxX(sample.dropX), y0Px + 1.0 * dpr, sim.timeline.r_ball * scale * 1.15 * sDrop, 0.95 * scale * sDrop, 0.42 * sDrop);
+
+          const hGolf = Math.max(0, sample.golfY - sim.timeline.r_golf);
+          const sGolf = 1 / (1 + hGolf / 32);
+          drawFloorShadow(ctx, toPxX(sample.golfX), y0Px + 1.0 * dpr, sim.timeline.r_golf * scale * 1.2 * sGolf, 0.9 * scale * sGolf, 0.40 * sGolf);
+        }
+      }
 
       // Horizontal 0..50 cm ruler & midpoint 25 cm
       ctx.strokeStyle = pal.rulerText;
@@ -747,11 +921,11 @@
         const px = toPxX(rx);
         const tickH = rx % 10 === 0 ? 5 * dpr : 3 * dpr;
         ctx.beginPath();
-        ctx.moveTo(px, toPxY(0));
-        ctx.lineTo(px, toPxY(0) + tickH);
+        ctx.moveTo(px, y0Px);
+        ctx.lineTo(px, y0Px + tickH);
         ctx.stroke();
         if (rx === 0 || rx === 25 || rx === 50) {
-          ctx.fillText(rx + ' cm', px, toPxY(0) + 14 * dpr);
+          ctx.fillText(rx + ' cm', px, y0Px + 14 * dpr);
         }
       }
       // Midpoint 25 cm marker & d displacement bracket
@@ -772,16 +946,47 @@
       ctx.fillText(dLabel, (pxMid + pxPivot) * 0.5, bracketY + 12 * dpr);
       ctx.restore();
 
+      // Target zone band (behind/aligned with yellow ruler)
+      const target = getCurrentTarget();
+      const yBandTop = toPxY(target.max);
+      const yBandBot = toPxY(target.min);
+      ctx.save();
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.12)';
+      ctx.fillRect(toPxX(-8), yBandTop, 16 * scale, yBandBot - yBandTop);
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
+      ctx.setLineDash([4 * dpr, 4 * dpr]);
+      ctx.lineWidth = 1.2 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(toPxX(-8), yBandTop);
+      ctx.lineTo(toPxX(16), yBandTop);
+      ctx.moveTo(toPxX(-8), yBandBot);
+      ctx.lineTo(toPxX(16), yBandBot);
+      ctx.stroke();
+      ctx.restore();
+
       // Yellow Pillar (-8..0, 0..80)
       ctx.save();
-      const gradY = ctx.createLinearGradient(toPxX(-8), 0, toPxX(0), 0);
-      gradY.addColorStop(0, '#ca8a04');
-      gradY.addColorStop(1, '#facc15');
-      ctx.fillStyle = gradY;
-      ctx.fillRect(toPxX(-8), toPxY(80), 8 * scale, 80 * scale);
+      const ypX = toPxX(-8);
+      const ypY = toPxY(80);
+      const ypW = 8 * scale;
+      const ypH = 80 * scale;
+      if (isReal) {
+        drawExtrudedBox(ctx, ypX, ypY, ypW, ypH, depX, depY, '#fef08a', '#854d0e', 'rgba(254, 240, 138, 0.35)', dpr);
+        const gradY = ctx.createLinearGradient(ypX, ypY, ypX + ypW, ypY + ypH);
+        gradY.addColorStop(0, '#ca8a04');
+        gradY.addColorStop(0.45, '#facc15');
+        gradY.addColorStop(1, '#eab308');
+        ctx.fillStyle = gradY;
+      } else {
+        const gradY = ctx.createLinearGradient(ypX, 0, toPxX(0), 0);
+        gradY.addColorStop(0, '#ca8a04');
+        gradY.addColorStop(1, '#facc15');
+        ctx.fillStyle = gradY;
+      }
+      ctx.fillRect(ypX, ypY, ypW, ypH);
       ctx.strokeStyle = '#fef08a';
       ctx.lineWidth = 1.5 * dpr;
-      ctx.strokeRect(toPxX(-8), toPxY(80), 8 * scale, 80 * scale);
+      ctx.strokeRect(ypX, ypY, ypW, ypH);
 
       // Highlight target band on yellow pillar
       ctx.fillStyle = 'rgba(34, 197, 94, 0.45)';
@@ -810,7 +1015,7 @@
         ctx.setLineDash([3 * dpr, 3 * dpr]);
         ctx.strokeRect(toPxX(-8), toPxY(92), 8 * scale, 12 * scale);
         ctx.setLineDash([]);
-        ctx.fillStyle = '#fde047';
+        ctx.fillStyle = isLightTheme ? '#b45309' : '#fde047';
         ctx.fillText('90', toPxX(0) - 2.5 * scale, toPxY(90) + 3.5 * dpr);
       }
       ctx.restore();
@@ -818,14 +1023,36 @@
       // Grey Pillar (50..64, 0..30)
       ctx.save();
       const greyW = 14;
-      const gradG = ctx.createLinearGradient(toPxX(50), 0, toPxX(50 + greyW), 0);
-      gradG.addColorStop(0, '#94a3b8');
-      gradG.addColorStop(1, '#64748b');
-      ctx.fillStyle = gradG;
-      ctx.fillRect(toPxX(50), toPxY(30), greyW * scale, 30 * scale);
+      const gpX = toPxX(50);
+      const gpY = toPxY(30);
+      const gpW = greyW * scale;
+      const gpH = 30 * scale;
+      if (isReal) {
+        drawExtrudedBox(ctx, gpX, gpY, gpW, gpH, depX, depY, '#cbd5e1', '#475569', 'rgba(226, 232, 240, 0.35)', dpr);
+        const gradG = ctx.createLinearGradient(gpX, gpY, gpX + gpW, gpY + gpH);
+        gradG.addColorStop(0, '#cbd5e1');
+        gradG.addColorStop(0.35, '#94a3b8');
+        gradG.addColorStop(1, '#64748b');
+        ctx.fillStyle = gradG;
+      } else {
+        const gradG = ctx.createLinearGradient(gpX, 0, toPxX(50 + greyW), 0);
+        gradG.addColorStop(0, '#94a3b8');
+        gradG.addColorStop(1, '#64748b');
+        ctx.fillStyle = gradG;
+      }
+      ctx.fillRect(gpX, gpY, gpW, gpH);
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 1.5 * dpr;
-      ctx.strokeRect(toPxX(50), toPxY(30), greyW * scale, 30 * scale);
+      ctx.strokeRect(gpX, gpY, gpW, gpH);
+
+      if (isReal) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(gpX + 1 * dpr, gpY + 1.5 * dpr);
+        ctx.lineTo(gpX + gpW - 1 * dpr, gpY + 1.5 * dpr);
+        ctx.stroke();
+      }
 
       ctx.fillStyle = '#0f172a';
       ctx.font = 'bold ' + Math.round(11 * dpr) + 'px "Segoe UI", sans-serif';
@@ -854,9 +1081,18 @@
         const txR = toPxX(tubeCenter + tubeHalfW);
         const tyTop = toPxY(86);
         const tyBot = toPxY(9);
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+        if (isReal) {
+          const tubeGrad = ctx.createLinearGradient(txL, 0, txR, 0);
+          tubeGrad.addColorStop(0, 'rgba(186, 230, 253, 0.18)');
+          tubeGrad.addColorStop(0.28, 'rgba(255, 255, 255, 0.22)');
+          tubeGrad.addColorStop(0.55, 'rgba(56, 189, 248, 0.06)');
+          tubeGrad.addColorStop(1, 'rgba(14, 165, 233, 0.14)');
+          ctx.fillStyle = tubeGrad;
+        } else {
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+        }
         ctx.fillRect(txL, tyTop, txR - txL, tyBot - tyTop);
-        ctx.strokeStyle = state.theme === 'light' ? 'rgba(2, 132, 199, 0.65)' : 'rgba(125, 211, 252, 0.55)';
+        ctx.strokeStyle = isLightTheme ? 'rgba(2, 132, 199, 0.65)' : 'rgba(125, 211, 252, 0.55)';
         ctx.lineWidth = 1.6 * dpr;
         ctx.beginPath();
         ctx.moveTo(txL, tyTop);
@@ -865,7 +1101,7 @@
         ctx.lineTo(txR, tyBot);
         ctx.stroke();
 
-        ctx.fillStyle = state.theme === 'light' ? '#0369a1' : 'rgba(125, 211, 252, 0.85)';
+        ctx.fillStyle = isLightTheme ? '#0369a1' : 'rgba(125, 211, 252, 0.85)';
         ctx.font = 'bold ' + Math.round(10 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('รางบังคับแนวดิ่ง', txR + 4 * dpr, tyTop + 12 * dpr);
@@ -892,12 +1128,39 @@
       // Triangle Fulcrum (height 3 cm, apex at (x_p, 3))
       ctx.save();
       const triHalfBase = 3.0;
+      const apexPxX = toPxX(sim.x_p);
+      const apexPxY = toPxY(3);
+      const triLeftPxX = toPxX(sim.x_p - triHalfBase);
+      const triRightPxX = toPxX(sim.x_p + triHalfBase);
+      const triBasePxY = toPxY(0);
+      if (isReal) {
+        const triDx = depX * 0.82;
+        const triDy = depY * 0.82;
+        ctx.beginPath();
+        ctx.moveTo(apexPxX, apexPxY);
+        ctx.lineTo(apexPxX + triDx, apexPxY + triDy);
+        ctx.lineTo(triRightPxX + triDx, triBasePxY + triDy);
+        ctx.lineTo(triRightPxX, triBasePxY);
+        ctx.closePath();
+        ctx.fillStyle = '#0369a1';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(186, 230, 253, 0.45)';
+        ctx.lineWidth = 1 * dpr;
+        ctx.stroke();
+      }
       ctx.beginPath();
-      ctx.moveTo(toPxX(sim.x_p), toPxY(3));
-      ctx.lineTo(toPxX(sim.x_p - triHalfBase), toPxY(0));
-      ctx.lineTo(toPxX(sim.x_p + triHalfBase), toPxY(0));
+      ctx.moveTo(apexPxX, apexPxY);
+      ctx.lineTo(triLeftPxX, triBasePxY);
+      ctx.lineTo(triRightPxX, triBasePxY);
       ctx.closePath();
-      ctx.fillStyle = state.draggingFulcrum || state.hoveringFulcrum ? '#38bdf8' : '#0ea5e9';
+      if (isReal) {
+        const triGrad = ctx.createLinearGradient(triLeftPxX, apexPxY, triRightPxX, triBasePxY);
+        triGrad.addColorStop(0, state.draggingFulcrum || state.hoveringFulcrum ? '#7dd3fc' : '#38bdf8');
+        triGrad.addColorStop(1, '#0284c7');
+        ctx.fillStyle = triGrad;
+      } else {
+        ctx.fillStyle = state.draggingFulcrum || state.hoveringFulcrum ? '#38bdf8' : '#0ea5e9';
+      }
       ctx.fill();
       ctx.strokeStyle = '#e0f2fe';
       ctx.lineWidth = (state.draggingFulcrum || state.hoveringFulcrum ? 2.4 : 1.4) * dpr;
@@ -922,23 +1185,83 @@
       const b2 = boardPt(sim.R1end, tcm);
       const b3 = boardPt(-sim.R2end, tcm);
 
+      const p0x = toPxX(b0.x), p0y = toPxY(b0.y);
+      const p1x = toPxX(b1.x), p1y = toPxY(b1.y);
+      const p2x = toPxX(b2.x), p2y = toPxY(b2.y);
+      const p3x = toPxX(b3.x), p3y = toPxY(b3.y);
+
+      if (isReal) {
+        const bDx = depX * 0.78;
+        const bDy = depY * 0.78;
+        // Upper board face behind front edge
+        ctx.beginPath();
+        ctx.moveTo(p3x, p3y);
+        ctx.lineTo(p3x + bDx, p3y + bDy);
+        ctx.lineTo(p2x + bDx, p2y + bDy);
+        ctx.lineTo(p2x, p2y);
+        ctx.closePath();
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(254, 243, 199, 0.4)';
+        ctx.lineWidth = 0.9 * dpr;
+        ctx.stroke();
+
+        // Right board thickness end face
+        ctx.beginPath();
+        ctx.moveTo(p1x, p1y);
+        ctx.lineTo(p1x + bDx, p1y + bDy);
+        ctx.lineTo(p2x + bDx, p2y + bDy);
+        ctx.lineTo(p2x, p2y);
+        ctx.closePath();
+        ctx.fillStyle = '#78350f';
+        ctx.fill();
+      }
+
       ctx.beginPath();
-      ctx.moveTo(toPxX(b0.x), toPxY(b0.y));
-      ctx.lineTo(toPxX(b1.x), toPxY(b1.y));
-      ctx.lineTo(toPxX(b2.x), toPxY(b2.y));
-      ctx.lineTo(toPxX(b3.x), toPxY(b3.y));
+      ctx.moveTo(p0x, p0y);
+      ctx.lineTo(p1x, p1y);
+      ctx.lineTo(p2x, p2y);
+      ctx.lineTo(p3x, p3y);
       ctx.closePath();
-      ctx.fillStyle = '#d97706';
-      ctx.fill();
+      if (isReal) {
+        const boardGrad = ctx.createLinearGradient(p3x, p3y, p0x, p0y);
+        boardGrad.addColorStop(0, '#ea8c1e');
+        boardGrad.addColorStop(0.55, '#c2610c');
+        boardGrad.addColorStop(1, '#92400e');
+        ctx.fillStyle = boardGrad;
+        ctx.fill();
+        // Fine wood-grain lines clipped inside board
+        ctx.save();
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(69, 26, 3, 0.35)';
+        ctx.lineWidth = 0.8 * dpr;
+        [0.32, 0.65].forEach(function (fracN) {
+          const ga = boardPt(-sim.R2end, tcm * fracN);
+          const gb = boardPt(sim.R1end, tcm * fracN);
+          ctx.beginPath();
+          ctx.moveTo(toPxX(ga.x), toPxY(ga.y));
+          ctx.lineTo(toPxX(gb.x), toPxY(gb.y));
+          ctx.stroke();
+        });
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#d97706';
+        ctx.fill();
+      }
       ctx.strokeStyle = '#fde68a';
       ctx.lineWidth = 1.4 * dpr;
       ctx.stroke();
 
       // Pivot pin dot
       ctx.beginPath();
-      ctx.arc(toPxX(sim.x_p), toPxY(3), 3 * dpr, 0, Math.PI * 2);
+      ctx.arc(apexPxX, apexPxY, 3 * dpr, 0, Math.PI * 2);
       ctx.fillStyle = '#f8fafc';
       ctx.fill();
+      if (isReal) {
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1 * dpr;
+        ctx.stroke();
+      }
       ctx.restore();
 
       // Horizontal Blue Pusher Actuator & Piston Head (อุปกรณ์ผลักลูกกลม) directly on 30 cm grey platform
@@ -949,33 +1272,85 @@
         const housingLeftX = 57.6;
         const housingRightX = 63.8;
         const housingW = housingRightX - housingLeftX;
+        const hPxX = toPxX(housingLeftX);
+        const hPxY = toPxY(baseY + boxH);
+        const hPxW = housingW * scale;
+        const hPxH = boxH * scale;
+
+        if (isReal) {
+          drawExtrudedBox(
+            ctx,
+            hPxX,
+            hPxY,
+            hPxW,
+            hPxH,
+            depX * 0.72,
+            depY * 0.72,
+            sample.phase === 'push' ? '#7dd3fc' : '#38bdf8',
+            '#0369a1',
+            'rgba(186, 230, 253, 0.45)',
+            dpr
+          );
+        }
 
         // Blue pusher housing on the right of the ball
-        const gradPush = ctx.createLinearGradient(0, toPxY(baseY + boxH), 0, toPxY(baseY));
+        const gradPush = ctx.createLinearGradient(0, hPxY, 0, toPxY(baseY));
         gradPush.addColorStop(0, sample.phase === 'push' ? '#38bdf8' : '#0ea5e9');
         gradPush.addColorStop(1, '#0284c7');
         ctx.fillStyle = gradPush;
-        ctx.fillRect(toPxX(housingLeftX), toPxY(baseY + boxH), housingW * scale, boxH * scale);
+        ctx.fillRect(hPxX, hPxY, hPxW, hPxH);
         ctx.strokeStyle = '#bae6fd';
         ctx.lineWidth = 1.4 * dpr;
-        ctx.strokeRect(toPxX(housingLeftX), toPxY(baseY + boxH), housingW * scale, boxH * scale);
+        ctx.strokeRect(hPxX, hPxY, hPxW, hPxH);
 
         // Sliding piston rod + push head block from housing to ball
         const headLeftX = Math.max(50.0, sample.pusherX);
         const headW = 1.6;
         const rodLeftX = headLeftX + headW;
         if (rodLeftX < housingLeftX) {
-          ctx.fillStyle = '#cbd5e1';
-          ctx.fillRect(toPxX(rodLeftX), toPxY(baseY + 2.9), (housingLeftX - rodLeftX) * scale, 1.0 * scale);
+          const rodPxX = toPxX(rodLeftX);
+          const rodPxY = toPxY(baseY + 2.9);
+          const rodPxW = (housingLeftX - rodLeftX) * scale;
+          const rodPxH = 1.0 * scale;
+          if (isReal) {
+            const rodGrad = ctx.createLinearGradient(0, rodPxY, 0, rodPxY + rodPxH);
+            rodGrad.addColorStop(0, '#f8fafc');
+            rodGrad.addColorStop(0.5, '#cbd5e1');
+            rodGrad.addColorStop(1, '#64748b');
+            ctx.fillStyle = rodGrad;
+          } else {
+            ctx.fillStyle = '#cbd5e1';
+          }
+          ctx.fillRect(rodPxX, rodPxY, rodPxW, rodPxH);
+        }
+
+        const hdPxX = toPxX(headLeftX);
+        const hdPxY = toPxY(baseY + 4.1);
+        const hdPxW = headW * scale;
+        const hdPxH = 3.4 * scale;
+        if (isReal) {
+          drawExtrudedBox(
+            ctx,
+            hdPxX,
+            hdPxY,
+            hdPxW,
+            hdPxH,
+            depX * 0.55,
+            depY * 0.55,
+            '#94a3b8',
+            '#1e293b',
+            null,
+            dpr
+          );
         }
         ctx.fillStyle = sample.phase === 'push' ? '#38bdf8' : '#334155';
         ctx.strokeStyle = '#e2e8f0';
         ctx.lineWidth = 1.3 * dpr;
-        ctx.fillRect(toPxX(headLeftX), toPxY(baseY + 4.1), headW * scale, 3.4 * scale);
-        ctx.strokeRect(toPxX(headLeftX), toPxY(baseY + 4.1), headW * scale, 3.4 * scale);
+        ctx.fillRect(hdPxX, hdPxY, hdPxW, hdPxH);
+        ctx.strokeRect(hdPxX, hdPxY, hdPxW, hdPxH);
 
         // Label above blue pusher device
-        ctx.fillStyle = state.theme === 'light' ? '#0369a1' : '#7dd3fc';
+        ctx.fillStyle = isLightTheme ? '#0369a1' : '#7dd3fc';
         ctx.font = 'bold ' + Math.round(10.5 * dpr) + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('อุปกรณ์ผลักลูกกลม', toPxX(59.0), toPxY(baseY + boxH + 1.8));
@@ -1038,8 +1413,8 @@
         ctx.arc(bx, by, br, 0, Math.PI * 2);
         if (state.ballType === 'billiard') {
           const gBall = ctx.createRadialGradient(bx - br * 0.3, by - br * 0.3, br * 0.1, bx, by, br);
-          gBall.addColorStop(0, '#f87171');
-          gBall.addColorStop(0.55, '#b91c1c');
+          gBall.addColorStop(0, isReal ? '#fca5a5' : '#f87171');
+          gBall.addColorStop(0.5, '#b91c1c');
           gBall.addColorStop(1, '#450a0a');
           ctx.fillStyle = gBall;
           ctx.fill();
@@ -1056,6 +1431,12 @@
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText('3', bx, by + 0.5 * dpr);
+          if (isReal) {
+            ctx.beginPath();
+            ctx.ellipse(bx - br * 0.32, by - br * 0.34, br * 0.24, br * 0.14, -Math.PI * 0.25, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.fill();
+          }
         } else {
           const gBall = ctx.createRadialGradient(bx - br * 0.3, by - br * 0.3, br * 0.1, bx, by, br);
           gBall.addColorStop(0, '#ecfccb');
@@ -1071,6 +1452,12 @@
           ctx.beginPath();
           ctx.arc(bx + br * 0.45, by, br * 0.6, Math.PI * 0.62, Math.PI * 1.38);
           ctx.stroke();
+          if (isReal) {
+            ctx.beginPath();
+            ctx.ellipse(bx - br * 0.30, by - br * 0.32, br * 0.22, br * 0.12, -Math.PI * 0.25, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+            ctx.fill();
+          }
         }
         ctx.restore();
 
@@ -1083,13 +1470,23 @@
         ctx.arc(gx, gy, gr, 0, Math.PI * 2);
         const gGolf = ctx.createRadialGradient(gx - gr * 0.3, gy - gr * 0.3, gr * 0.1, gx, gy, gr);
         gGolf.addColorStop(0, '#ffffff');
-        gGolf.addColorStop(0.75, '#e2e8f0');
-        gGolf.addColorStop(1, '#94a3b8');
+        gGolf.addColorStop(0.72, '#e2e8f0');
+        gGolf.addColorStop(1, isReal ? '#64748b' : '#94a3b8');
         ctx.fillStyle = gGolf;
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1 * dpr;
         ctx.stroke();
+        if (isReal) {
+          ctx.fillStyle = 'rgba(100, 116, 139, 0.35)';
+          [
+            [-0.25, -0.1], [0.15, -0.25], [0.22, 0.18], [-0.15, 0.28], [0.0, 0.04]
+          ].forEach(function (pt) {
+            ctx.beginPath();
+            ctx.arc(gx + pt[0] * gr, gy + pt[1] * gr, gr * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
         ctx.restore();
 
         // Velocity vectors
@@ -1107,7 +1504,7 @@
         }
       }
 
-      // Max height marker line & Apex celebration sparkles
+      // Max height marker line & Apex celebration sparkles (always drawn crisp on top)
       const showApexBright =
         state.animMode === 'done' || (state.animMode === 'running' && sample && sample.reachedApex);
       const inTarget = sim.H_max >= target.min && sim.H_max <= target.max;
@@ -1146,6 +1543,10 @@
             ctx.fill();
           }
         }
+        ctx.restore();
+      }
+
+      if (didShake) {
         ctx.restore();
       }
     }
@@ -1351,10 +1752,54 @@
       });
     }
 
+    function triggerDashboardFlash(pass) {
+      if (!el.dashboardCard) return;
+      el.dashboardCard.classList.remove('flash-ok', 'flash-fail');
+      void el.dashboardCard.offsetWidth;
+      el.dashboardCard.classList.add(pass ? 'flash-ok' : 'flash-fail');
+      if (state.flashTimer) clearTimeout(state.flashTimer);
+      state.flashTimer = setTimeout(function () {
+        if (el.dashboardCard) el.dashboardCard.classList.remove('flash-ok', 'flash-fail');
+        state.flashTimer = null;
+      }, 1250);
+    }
+
+    function startCountUpAndFlash(targetH, pass) {
+      clearFlashAndCount();
+      const anim = { active: true, to: targetH, startTs: null, dur: 800, pass: pass };
+      state.countAnim = anim;
+      el.dashH.textContent = '0.00 cm';
+
+      function stepCount(now) {
+        if (state.countAnim !== anim || !anim.active) return;
+        if (anim.startTs === null) anim.startTs = now;
+        const frac = clamp((now - anim.startTs) / anim.dur, 0, 1);
+        const eased = 1 - Math.pow(1 - frac, 3);
+        el.dashH.textContent = (anim.to * eased).toFixed(2) + ' cm';
+        if (frac < 1) {
+          requestAnimationFrame(stepCount);
+        } else {
+          anim.active = false;
+          state.countAnim = null;
+          el.dashH.textContent = anim.to.toFixed(2) + ' cm';
+          el.dashH.classList.remove('digit-flash');
+          void el.dashH.offsetWidth;
+          el.dashH.classList.add('digit-flash');
+          triggerDashboardFlash(anim.pass);
+        }
+      }
+      requestAnimationFrame(stepCount);
+    }
+
     function startSimulation(instantMode) {
       state.activeSim = Physics.simulate(state.params, state.ballType, state.d, state.opts);
       if (!state.activeSim || !state.activeSim.valid) return;
+      clearFlashAndCount();
       state.lockedResult = null;
+      state.impactTriggered = false;
+      state.launchTriggered = false;
+      state.shakeUntil = 0;
+
       if (instantMode) {
         state.simTime = state.activeSim.timeline.tEnd;
         state.animMode = 'done';
@@ -1365,6 +1810,8 @@
         drawStage();
         return;
       }
+
+      if (window.Sfx) window.Sfx.push();
       state.simTime = 0;
       state.animMode = 'running';
       state.lastFrameTs = null;
@@ -1374,10 +1821,14 @@
     }
 
     function resetSimulation() {
+      clearFlashAndCount();
       state.animMode = 'idle';
       state.simTime = 0;
       state.lockedResult = null;
       state.lastFrameTs = null;
+      state.impactTriggered = false;
+      state.launchTriggered = false;
+      state.shakeUntil = 0;
       recomputeActiveSim(false);
     }
 
@@ -1425,22 +1876,41 @@
           state.animMode = 'idle';
           return;
         }
+        const prevSimTime = state.simTime;
         state.simTime += dtReal * state.slowMo;
+
+        if (!state.impactTriggered && prevSimTime < sim.timeline.tImpact && state.simTime >= sim.timeline.tImpact) {
+          state.impactTriggered = true;
+          state.shakeUntil = performance.now() + 150;
+          if (window.Sfx) window.Sfx.impact();
+        }
+        if (!state.launchTriggered && prevSimTime < sim.timeline.tLaunch && state.simTime >= sim.timeline.tLaunch) {
+          state.launchTriggered = true;
+          if (window.Sfx) window.Sfx.launch();
+        }
+
         if (state.simTime >= sim.timeline.tEnd) {
           state.simTime = sim.timeline.tEnd;
           state.animMode = 'done';
           state.lockedResult = sim;
           recordResult(sim);
-          el.dashH.classList.remove('digit-flash');
-          void el.dashH.offsetWidth;
-          el.dashH.classList.add('digit-flash');
+          const target = getCurrentTarget();
+          const pass = sim.H_max >= target.min && sim.H_max <= target.max;
+          if (window.Sfx) {
+            if (pass) window.Sfx.success();
+            else window.Sfx.fail();
+          }
+          startCountUpAndFlash(sim.H_max, pass);
         }
         updateDashboard();
         updatePhysicsCards();
         drawStage();
-        if (state.animMode === 'running') {
+        if (state.animMode === 'running' || performance.now() < state.shakeUntil) {
           requestAnimationFrame(stepAnimation);
         }
+      } else if (performance.now() < state.shakeUntil) {
+        drawStage();
+        requestAnimationFrame(stepAnimation);
       }
     }
 
@@ -1537,6 +2007,41 @@
       drawGraph();
     }
 
+    if (el.btnRender) {
+      el.btnRender.addEventListener('click', function () {
+        state.opts.render = state.opts.render === 'real' ? 'flat' : 'real';
+        saveStoredState(state.params, state.presetId, state.theme, state.view, state.opts.render);
+        updateControlsLabels();
+        drawStage();
+      });
+    }
+
+    function dismissSplash() {
+      if (!state.splashOpen || !el.splash) return;
+      state.splashOpen = false;
+      el.splash.classList.add('fade-out');
+      setTimeout(function () {
+        if (el.splash) el.splash.style.display = 'none';
+      }, 460);
+    }
+
+    function initSplash() {
+      if (!el.splash) return;
+      if (el.splashLogo && window.AIIA_LOGO) {
+        el.splashLogo.src = window.AIIA_LOGO;
+      }
+      const shouldSkip =
+        window.location.hash === '#autorun' || window.location.search.indexOf('nosplash') >= 0;
+      if (shouldSkip) {
+        state.splashOpen = false;
+        el.splash.style.display = 'none';
+        return;
+      }
+      state.splashOpen = true;
+      el.splash.addEventListener('click', dismissSplash);
+      setTimeout(dismissSplash, 2500);
+    }
+
     if (el.btnFullscreen) {
       el.btnFullscreen.addEventListener('click', toggleFullscreen);
     }
@@ -1544,6 +2049,11 @@
     document.addEventListener('webkitfullscreenchange', updateFullscreenUI);
 
     document.addEventListener('keydown', function (ev) {
+      if (state.splashOpen) {
+        ev.preventDefault();
+        dismissSplash();
+        return;
+      }
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
       const tgt = ev.target;
       if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'SELECT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
@@ -1786,6 +2296,7 @@
     });
 
     // Initial bootstrap
+    initSplash();
     applyTheme(state.theme);
     applyViewTab(state.view);
     syncInputsFromParams();
